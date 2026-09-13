@@ -56,7 +56,8 @@ node scripts/quorum-e2e.mjs  # 期望场景1 revert "No challenger quorum"、场
 - [x] Orchestrator 读侧+写侧（`orchestrator/server.mjs`）
 - [x] 收据索引器（绕过 getLogs 100 块限制，`scripts/index-receipts.mjs`）
 - [x] **Proposer/Challenger 双代理互证** + `AegisVaultQuorum` 上链部署 + 链上 quorum E2E
-- [x] **Challenger 独立性包**（2026-09-13 Phase 1）：`challenger/` 自包含验证进程（4 层独立重推导 + 决策原文存证端点 + fail-closed，11 用例自测全过）；orchestrator 角色分离（不再代签 validation）；**部署到队友机器（见 challenger/README.md）即成真 2-of-2**；链上 attest 待 Phase 2（当前链上 guardrail 是 quorum-e2e 占位值 0x1111…，attest 前独立 challenger 会拒绝所有收据，属设计行为）
+- [x] **Challenger 独立性包**（2026-09-13 Phase 1）：`challenger/` 自包含验证进程（4 层独立重推导 + 决策原文存证端点 + fail-closed，11 用例自测全过）；orchestrator 角色分离（不再代签 validation）；**部署到队友机器（见 challenger/README.md）即成真 2-of-2**
+- [x] **Phase 2 完成**（2026-09-13）：合约 v2 部署——ReceiptRegistry `0x4622D041...`（bindTranscript 决策原文绑定 + MAX_BLOCK_AGE=100）、AegisVaultQuorum `0xe6E24BB7...`（executeTrade 带 {value}，vault 余额真实变动）；**quote 路径上线**——Phala CVM `aegis-quote`（tdx.small 常驻，公网端点在 .env QUOTE_URL）实时生成绑定 digest 的真 TDX quote → `submitReceiptWithQuote` 链上 DCAP 验真；orchestrator execute 流程接通（AGENTS 待办#1 完成）；**全链 E2E 实测（17.6s）**：submitReceiptWithQuote（gas 3.5M，tx 0x7981eb9b...）→ challenger 四层 pass → validationResponse(100) → executeTrade（tx 0xe4902c0a...，TradeExecuted @62191167 块后）→ vault 0.5→0.48 MON；18/18 单测（新增 3 个 bindTranscript 用例）；策略变更流程实跑（白名单 → env 同步 → re-attest）；主钱包余额约 1.7 MON（challenger 回转 1.5 MON，tx 0x6a444c95...）；已知坑：Windows 下 Git Bash kill 杀不干净 node 后台进程（用 PowerShell Stop-Process），orchestrator 端口占用时新进程 EADDRINUSE 静默崩溃（重定向前先查 netstat）
 - [x] Hardhat 单测 **15/15 通过**；Dashboard 构建通过
 - [x] 参赛材料：`aegis/README.md`、`demo-90s-操作脚本.md`、`第四版策略.md`
 
