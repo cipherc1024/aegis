@@ -1,9 +1,12 @@
-// Aegis Orchestrator（零依赖）：链上状态/收据/验证/事件流 + 写侧（决策管线 → 上链）
+// Aegis Orchestrator（零依赖）：链上状态/收据/事件流 + 写侧（决策管线 → 上链 → 决策原文存证）
+// 角色分离：本进程只当 proposer —— 链上 validation 一律由独立 challenger 进程
+//（challenger/challenger-agent.mjs，部署在另一台机器）完成；本进程仅提供决策原文
+// GET /api/decision/:digest 与离线预览，不持有 challenger 私钥。
 // 运行: node orchestrator/server.mjs   （在 aegis/ 目录）
 import http from "node:http";
 import fs from "node:fs";
 import { JsonRpcProvider, FallbackProvider, Wallet, Contract, keccak256, toUtf8Bytes, AbiCoder } from "ethers";
-import { challengeReceipt, challengerGuardrail, challengerPace } from "../tee-runtime/challenger.mjs";
+import { verifyDecision, attestedGuardrailHash } from "../challenger/verify.mjs";
 
 // ---- env（零依赖加载，不覆盖已有） ----
 if (fs.existsSync(".env")) {
@@ -22,7 +25,6 @@ const REGISTRY = process.env.REGISTRY || "0x91482e67998a01C0A33Fe12ec01A6A43177A
 const PER_TX_LIMIT = BigInt(process.env.PER_TX_LIMIT || "50000000000000000"); // 0.05 MON
 const WHITELIST = (process.env.WHITELIST || "0x000000000000000000000000000000000000beef").split(",").map((x) => x.toLowerCase());
 const BLOCKLIST = (process.env.BLOCKLIST || "evil.com,attacker,drain,ignore previous").split(",").filter(Boolean);
-const CHALLENGER_BLOCKLIST = (process.env.CHALLENGER_BLOCKLIST || "evil.com,attacker,drain,ignore previous,scam,drainer").split(",").filter(Boolean);
 const TRUSTED_CMD = process.env.TRUSTED_CMD || "buy USDC 0.01";
 
 const provider = new FallbackProvider(
@@ -50,18 +52,30 @@ const reg = new Contract(REGISTRY, READ_ABI, provider);
 
 const wallet = process.env.MONAD_TESTNET_PK ? new Wallet(process.env.MONAD_TESTNET_PK, provider) : null;
 const regWrite = wallet ? new Contract(REGISTRY, WRITE_ABI, wallet) : null;
-// challenger：独立钱包（验证者）；未配置则只做离线重推导
-const VALIDATION = process.env.VALIDATION || "0x8b96a09eb50409FE4c402cB9Bb9D1Ef79bbe0cEa";
-const challengerWallet = process.env.CHALLENGER_PK ? new Wallet(process.env.CHALLENGER_PK, provider) : null;
-const valWrite = challengerWallet
-  ? new Contract(VALIDATION, ["function validationRequest(address,uint256,string,bytes32)", "function validationResponse(bytes32,uint8,string,bytes32,string)"], challengerWallet)
-  : null;
-
 // vault 读侧：日限预检与链上 executeTrade 同口径（QUORUM_VAULT 未配置或读失败时跳过预检，链上仍强制）
 const QUORUM_VAULT = process.env.QUORUM_VAULT || "";
 const vaultRead = QUORUM_VAULT
   ? new Contract(QUORUM_VAULT, ["function dailyLimit() view returns (uint256)", "function dailySpent(uint256) view returns (uint256)"], provider)
   : null;
+
+// ---- 角色分离：本进程只当 proposer。链上 validation 一律由独立 challenger 进程
+//      （challenger/challenger-agent.mjs，部署在另一台机器）完成；本进程不持有 challenger 私钥。
+// challenger 自持策略（与 challenger/ 打包同源；attest 见 challenger/policy-attest.mjs）
+const CHALLENGER_POLICY = JSON.parse(fs.readFileSync(new URL("../challenger/challenger-policy.json", import.meta.url), "utf8"));
+
+// ---- 决策原文存证：独立 challenger 经 GET /api/decision/:digest 拉取（拉不到 = fail-closed 拒绝） ----
+const decisions = new Map();
+const DECISIONS_FILE = "orchestrator/decisions.jsonl";
+try {
+  for (const line of fs.readFileSync(DECISIONS_FILE, "utf8").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try { const d = JSON.parse(line); if (d.receiptDigest) decisions.set(d.receiptDigest, d); } catch {}
+  }
+} catch {}
+function recordDecision(t) {
+  decisions.set(t.receiptDigest, t);
+  try { fs.appendFileSync(DECISIONS_FILE, JSON.stringify(t) + "\n"); } catch {}
+}
 
 const abi = AbiCoder.defaultAbiCoder();
 
@@ -156,6 +170,7 @@ async function command(agentId, body) {
   const target = String(body.target || WHITELIST[0]);
   const amount = type === "heartbeat" ? 0n : BigInt(body.amount ?? "10000000000000000"); // 0.01 MON
   const data = body.data || "0xdeadbeef";
+  let vaultDaily = null;
   if (type !== "heartbeat") {
     const reject = paceVerify({ target, amount, data });
     if (reject) return { decision: "rejected_by_policy", reason: reject, dryRun };
@@ -165,6 +180,7 @@ async function command(agentId, body) {
         const blk = await provider.getBlock("latest");
         const today = Math.floor(blk.timestamp / 86400);
         const [dailyLimit, spentToday] = await Promise.all([vaultRead.dailyLimit(), vaultRead.dailySpent(BigInt(today))]);
+        vaultDaily = { dailyLimit, spentToday };
         if (amount > dailyLimit - spentToday) {
           return { decision: "rejected_by_policy", reason: "exceeds_daily_limit", dryRun, dailyLimit: dailyLimit.toString(), spentToday: spentToday.toString() };
         }
@@ -186,10 +202,13 @@ async function command(agentId, body) {
   const fields = buildReceiptFields({ agentId: Number(agentId), type, target, amount, data, guardrailHash: onChainGuardrail, prev, nonce });
 
   if (dryRun || !wallet) {
-  // challenger 离线预览（零 gas）：独立重推导会对这笔决策说什么
-  const previewVerdict = challengeReceipt({
+  // challenger 离线预览（零 gas）：独立 challenger 进程将对这笔决策说什么
+  const previewVerdict = verifyDecision({
+    policy: CHALLENGER_POLICY,
+    transcript: { command: trustedCommand, marketData, target, amount: amount.toString(), data },
     receipt: { pdrHash: fields.pdrHash, guardrailHash: onChainGuardrail, executionHash: fields.executionHash, blockHeight: 0, blockHash: ZERO32, nonce, digest: null, prev },
-    inputs: { agentId: Number(agentId), command: trustedCommand, marketData, target, amount, data, blocklist: CHALLENGER_BLOCKLIST, whitelist: WHITELIST, perTxLimit: PER_TX_LIMIT },
+    dailySpent: vaultDaily ? vaultDaily.spentToday : null,
+    agentId: Number(agentId),
   });
   return {
     decision: "approved_preview",
@@ -201,7 +220,14 @@ async function command(agentId, body) {
     prev,
     onChainGuardrail,
     hasSigner: !!wallet,
-    challenger: { agree: previewVerdict.agree, response: previewVerdict.response, mismatches: previewVerdict.mismatches, onchain: null, hasSigner: !!challengerWallet },
+    challenger: {
+      agree: previewVerdict.agree,
+      response: previewVerdict.response,
+      layers: previewVerdict.layers,
+      mismatches: previewVerdict.mismatches,
+      attestedGuardrailHash: attestedGuardrailHash(CHALLENGER_POLICY),
+      note: "on-chain validation 由独立 challenger 进程/机器完成（proposer 不代签）",
+    },
   };
 }
 
@@ -217,43 +243,40 @@ async function command(agentId, body) {
   const r = await tx.wait();
   const receiptDigest = await regWrite.lastReceiptHash(agentId);
 
-  // 6) challenger 互证：独立重推导 → 链上验证（requestHash 约定 = 收据 digest）
-  const challengeInput = {
-    agentId: Number(agentId),
+  // 5b) 决策原文存证（独立 challenger 经 GET /api/decision/:digest 拉取；拉不到 = fail-closed 拒绝）
+  const transcript = {
+    receiptDigest,
+    type,
     command: trustedCommand,
     marketData,
     target,
-    amount,
+    amount: amount.toString(),
     data,
-    blocklist: CHALLENGER_BLOCKLIST,
-    whitelist: WHITELIST,
-    perTxLimit: PER_TX_LIMIT,
-  };
-  const receiptForChallenge = {
-    pdrHash: fields.pdrHash,
     guardrailHash: onChainGuardrail,
+    pdrHash: fields.pdrHash,
     executionHash: fields.executionHash,
+    nonce,
     blockHeight: n,
     blockHash: blk.hash,
-    nonce,
-    digest: receiptDigest,
     prev,
+    ts: Date.now(),
   };
-  // tamper 演示：proposer 在收据里作弊（提交与决策输入不符的 executionHash），
-  // challenger 独立重推导会立刻发现 executionHash_mismatch → response=0
-  if (body.tamperExecHash) {
-    receiptForChallenge.executionHash = ZERO32;
+  // 演示：篡改对外提供的决策原文 → challenger 以链上 executionHash 锚定，
+  // preimage 不符 → executionHash_mismatch → response=0 → executeTrade 被金库拒绝
+  if (body.tamperTranscript) {
+    transcript.amount = (amount + 1n).toString();
+    transcript.tampered = true;
   }
-  const verdict = challengeReceipt({ receipt: receiptForChallenge, inputs: challengeInput });
-  let challengerOnchain = null;
-  if (valWrite && (verdict.response > 0 || body.recordReject)) {
-    // 同意 → 上链背书；拒绝 → 默认不上链（作恶提案止步于互证），body.recordReject=true 可上链作证据
-    const reqTx = await valWrite.validationRequest(challengerWallet.address, agentId, "ipfs://aegis-challenge", receiptDigest);
-    await reqTx.wait();
-    const resTx = await valWrite.validationResponse(receiptDigest, verdict.response, "ipfs://aegis-verdict", "0x" + "00".repeat(32), "challenger");
-    const resR = await resTx.wait();
-    challengerOnchain = { requestTx: reqTx.hash, responseTx: resTx.hash, status: resR.status };
-  }
+  recordDecision(transcript);
+
+  // 6) challenger 预览（离线）：链上 validation 由独立 challenger 进程/机器完成 —— proposer 不代签
+  const verdict = verifyDecision({
+    policy: CHALLENGER_POLICY,
+    transcript,
+    receipt: { digest: receiptDigest, pdrHash: fields.pdrHash, guardrailHash: onChainGuardrail, executionHash: fields.executionHash, blockHeight: n, blockHash: blk.hash, nonce, prev },
+    dailySpent: vaultDaily ? vaultDaily.spentToday : null,
+    agentId: Number(agentId),
+  });
 
   return {
     decision: "approved_onchain",
@@ -266,9 +289,9 @@ async function command(agentId, body) {
     challenger: {
       agree: verdict.agree,
       response: verdict.response,
+      layers: verdict.layers,
       mismatches: verdict.mismatches,
-      onchain: challengerOnchain,
-      hasSigner: !!challengerWallet,
+      note: "独立 challenger 进程将拉取决策原文并上链 validation（本进程不代签）",
     },
     ...fields,
     prev,
@@ -293,6 +316,14 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url.pathname === "/api/status") return send(200, await status(agentId));
     if (url.pathname === "/api/receipts") return send(200, await receipts(agentId));
+
+    if (url.pathname.startsWith("/api/decision/") && req.method === "GET") {
+      const hash = url.pathname.slice("/api/decision/".length).toLowerCase();
+      const d = decisions.get(hash);
+      return d
+        ? send(200, { found: true, transcript: d })
+        : send(404, { found: false, error: "no transcript for this receipt — challenger fails closed (no transcript, no signature)" });
+    }
 
     if (url.pathname === "/api/events") {
       res.writeHead(200, { "Content-Type": "text/event-stream", ...cors, "Cache-Control": "no-cache" });

@@ -56,6 +56,7 @@ node scripts/quorum-e2e.mjs  # 期望场景1 revert "No challenger quorum"、场
 - [x] Orchestrator 读侧+写侧（`orchestrator/server.mjs`）
 - [x] 收据索引器（绕过 getLogs 100 块限制，`scripts/index-receipts.mjs`）
 - [x] **Proposer/Challenger 双代理互证** + `AegisVaultQuorum` 上链部署 + 链上 quorum E2E
+- [x] **Challenger 独立性包**（2026-09-13 Phase 1）：`challenger/` 自包含验证进程（4 层独立重推导 + 决策原文存证端点 + fail-closed，11 用例自测全过）；orchestrator 角色分离（不再代签 validation）；**部署到队友机器（见 challenger/README.md）即成真 2-of-2**；链上 attest 待 Phase 2（当前链上 guardrail 是 quorum-e2e 占位值 0x1111…，attest 前独立 challenger 会拒绝所有收据，属设计行为）
 - [x] Hardhat 单测 **15/15 通过**；Dashboard 构建通过
 - [x] 参赛材料：`aegis/README.md`、`demo-90s-操作脚本.md`、`第四版策略.md`
 
@@ -141,12 +142,18 @@ node scripts/quorum-e2e.mjs  # 期望场景1 revert "No challenger quorum"、场
 
 ### 运行时（`aegis/tee-runtime/`）
 - `runtime.mjs` — buildIntent/policyHash/normalize/runGuardrail/paceVerify/computeExecutionHash/computeSemanticDigest
-- `challenger.mjs` — challengerGuardrail/challengerPace/challengeReceipt（digest=null 跳过摘要检查供 dryRun）
 - `llm.mjs` / `llm-openai.mjs` — makeLLM() 无 key 自动 mock
 - `agent.mjs` / `agent-demo.mjs` / `run.mjs` / `llm-test.mjs`
 
+### Challenger（`aegis/challenger/`，Phase 1 新增，自包含可整目录拷到队友机器）
+- `verify.mjs` — **4 层独立重推导**（L1 策略认证 / L2 独立护栏 / L3 独立 PACE 含日限 / L4 算术+transcript preimage 绑定），与 proposer 零共享代码；fail-closed
+- `challenger-agent.mjs` — 独立进程：轮询链上收据 → 直读字段 → 拉 decision 原文（拉不到=拒绝）→ 验证 → 独立钱包上链 validation；`--once` 单次模式
+- `challenger-policy.json` — challenger 自持策略（改后需 proposer 跑 policy-attest --execute）
+- `policy-attest.mjs` — 治理侧把认证 guardrailHash 设上链（默认打印零 gas，--execute 发交易；含 env/策略一致性检查）
+- `selftest.mjs` — 11 用例离线自测；`gen-key.mjs` 独立钱包生成；`README.md` 队友部署指南
+
 ### Orchestrator（`aegis/orchestrator/`）
-- `server.mjs` — 读侧 `/api/status` `/api/receipts` `/api/events`(SSE)；写侧 `POST /api/agent/command?agentId=1`（body: `{command, marketData, target, amount, data, dryRun, tamperExecHash, recordReject}`）
+- `server.mjs` — 读侧 `/api/status` `/api/receipts` `/api/decision/:digest`(决策原文) `/api/events`(SSE)；写侧 `POST /api/agent/command?agentId=1`（body: `{command, marketData, target, amount, data, dryRun, tamperTranscript}`）。**角色分离：本进程只当 proposer，不持有 challenger 私钥，不代签 validation**；上链后决策原文存证 `decisions.jsonl` 供 challenger 拉取
 - `receipts-cache.json` — 索引器产物
 
 ### 脚本（`aegis/scripts/`，重点）

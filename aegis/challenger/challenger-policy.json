@@ -1,0 +1,9 @@
+{
+  "agentId": 1,
+  "whitelist": ["0x000000000000000000000000000000000000beef"],
+  "perTxLimit": "50000000000000000",
+  "dailyLimit": "1000000000000000000",
+  "maxSlippageBps": 100,
+  "blocklist": ["evil.com", "attacker", "drain", "ignore previous"],
+  "allowedAssets": ["USDC"]
+}

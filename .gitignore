@@ -20,6 +20,9 @@ aegis/tools/
 # ---- 日志与生成物 ----
 *.log
 **/receipts-cache.json
+**/decisions.jsonl
+**/challenger-state.json
+**/challenger-log.jsonl
 
 # ---- 系统杂项 ----
 .DS_Store

@@ -1,0 +1,10 @@
+{
+  "name": "aegis-challenger",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Aegis independent challenger — deploy on a separate machine from the proposer (2-of-2)",
+  "dependencies": {
+    "ethers": "^6.17.0"
+  }
+}
