@@ -1,0 +1,8 @@
+services:
+  quote:
+    image: node:22-slim
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+    environment:
+      - APP_B64=${APP_B64}
+    command: ["sh", "-c", "mkdir -p /app; cd /app; npm init -y >/dev/null 2>&1; npm i --no-audit --no-fund @phala/dstack-sdk 2>&1 | tail -1; echo $$APP_B64 | base64 -d > /app/quote-server.mjs; wc -c /app/quote-server.mjs; node /app/quote-server.mjs"]

@@ -14,7 +14,7 @@ interface IDcapGate {
 ///         2) submitReceiptWithQuote —— 附带 DCAP quote，链上验证 quote 真实
 ///            且其 report_data[0:32] 绑定本收据的"语义摘要"
 contract ReceiptRegistry {
-    uint256 public constant MAX_BLOCK_AGE = 40; // 40 块 ≈ 12s @300ms，容忍提交往返延迟
+    uint256 public constant MAX_BLOCK_AGE = 100; // 100 块 ≈ 30s @300ms：容忍 quote 往返 + LLM 延迟（nonce+prev 链已防重放）
 
     struct Receipt {
         bytes32 digest;
@@ -39,6 +39,8 @@ contract ReceiptRegistry {
     mapping(uint256 => Receipt) public lastTradeReceipt;
     mapping(uint256 => bytes32) public agentGuardrailHash;
     mapping(uint256 => mapping(bytes32 => bool)) public usedNonces;
+    // 决策原文绑定：receiptDigest => keccak(abi.encode(command, marketData, target, amount, data))
+    mapping(bytes32 => bytes32) public transcriptHash;
 
     event ReceiptSubmitted(
         uint256 indexed agentId,
@@ -54,6 +56,7 @@ contract ReceiptRegistry {
     event GuardrailUpdated(uint256 indexed agentId, bytes32 guardrailHash);
     event TEEAuthorized(uint256 indexed agentId, address tee);
     event DcapGateUpdated(address gate);
+    event TranscriptBound(uint256 indexed agentId, bytes32 indexed receiptDigest, bytes32 transcriptHash, string transcriptURI);
 
     modifier onlyGovernance() {
         require(msg.sender == governance, "Not governance");
@@ -83,6 +86,22 @@ contract ReceiptRegistry {
     function setDcapGate(address gate) external onlyGovernance {
         dcapGate = IDcapGate(gate);
         emit DcapGateUpdated(gate);
+    }
+
+    /// @notice 决策原文绑定：把 transcriptHash（决策原文的 keccak）绑到最新收据。
+    ///         challenger 独立重推导时以链上 transcriptHash 锚定原文 —— 伪造原文直接 mismatch，
+    ///         无绑定（未 bind）→ challenger fail-closed 拒绝（no transcript, no signature）。
+    function bindTranscript(
+        uint256 agentId,
+        bytes32 receiptDigest,
+        bytes32 tHash,
+        string calldata transcriptURI
+    ) external onlyTEE(agentId) {
+        require(lastReceiptHash[agentId] == receiptDigest, "Not latest receipt");
+        require(transcriptHash[receiptDigest] == bytes32(0), "Transcript bound");
+        require(tHash != bytes32(0), "Zero transcript hash");
+        transcriptHash[receiptDigest] = tHash;
+        emit TranscriptBound(agentId, receiptDigest, tHash, transcriptURI);
     }
 
     /// @notice 路径 1：仅授权 TEE 地址可提交（MVP/回退）

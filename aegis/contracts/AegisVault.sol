@@ -76,13 +76,14 @@ contract AegisVault {
 
     /// @notice 执行一笔交易。只有 TEE 可调用；执行体必须与最新交易收据的
     ///         executionHash 完全一致（无收据背书的执行直接 revert）。
+    ///         value 以原生 MON 随调用发送（限额以 value 计量）。
     function executeTrade(
         address target,
-        uint256 amount,
+        uint256 value,
         bytes calldata data
     ) external onlyTEE proofAlive nonReentrant {
         // PACE 绑定：执行-字节 ↔ 收据
-        bytes32 execHash = keccak256(abi.encode(target, amount, data));
+        bytes32 execHash = keccak256(abi.encode(target, value, data));
         require(registry.latestExecutionHash(agentId) == execHash, "No PDR binding");
 
         // 扩展钩子（如 challenger 互证 quorum）；默认无操作
@@ -90,15 +91,15 @@ contract AegisVault {
 
         // 链上硬约束（独立于 TEE）
         require(whitelistedTargets[target], "Target not whitelisted");
-        require(amount <= perTxLimit, "Exceeds per-tx limit");
+        require(value <= perTxLimit, "Exceeds per-tx limit");
         uint256 today = block.timestamp / 1 days;
-        require(amount <= dailyLimit - dailySpent[today], "Exceeds daily limit");
-        dailySpent[today] += amount;
+        require(value <= dailyLimit - dailySpent[today], "Exceeds daily limit");
+        dailySpent[today] += value;
 
-        (bool success, ) = target.call(data);
+        (bool success, ) = target.call{value: value}(data);
         require(success, "Trade failed");
 
-        emit TradeExecuted(target, amount, execHash);
+        emit TradeExecuted(target, value, execHash);
     }
 
     /// @dev 扩展点：子类覆写以加入额外执行前校验（如 challenger 互证）

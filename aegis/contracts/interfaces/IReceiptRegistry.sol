@@ -13,4 +13,8 @@ interface IReceiptRegistry {
 
     /// @notice 当前哈希链头（最近一张收据的 digest；challenger 互证以它为 requestHash）
     function lastReceiptHash(uint256 agentId) external view returns (bytes32);
+
+    /// @notice 决策原文绑定：receiptDigest => keccak(abi.encode(command, marketData, target, amount, data))
+    ///         （未绑定时为 0 —— challenger 对未绑定原文的收据 fail-closed 拒绝）
+    function transcriptHash(bytes32 receiptDigest) external view returns (bytes32);
 }

@@ -46,6 +46,8 @@ const WRITE_ABI = [
   "function agentTEE(uint256) view returns (address)",
   "function authorizeTEE(uint256,address)",
   "function submitReceipt(uint256,bytes32,bytes32,bytes32,bytes32,uint256,bytes32,bool)",
+  "function submitReceiptWithQuote(uint256,bytes32,bytes32,bytes32,bytes32,uint256,bytes32,bool,bytes)",
+  "function bindTranscript(uint256,bytes32,bytes32,string)",
   "function governance() view returns (address)",
 ];
 const reg = new Contract(REGISTRY, READ_ABI, provider);
@@ -57,6 +59,13 @@ const QUORUM_VAULT = process.env.QUORUM_VAULT || "";
 const vaultRead = QUORUM_VAULT
   ? new Contract(QUORUM_VAULT, ["function dailyLimit() view returns (uint256)", "function dailySpent(uint256) view returns (uint256)"], provider)
   : null;
+// vault 写侧：execute 流程（proposer=TEE 钱包调用 executeTrade；AGENTS 待办#1）
+const vaultWrite = wallet && QUORUM_VAULT
+  ? new Contract(QUORUM_VAULT, ["function executeTrade(address,uint256,bytes)"], wallet)
+  : null;
+const valRead = new Contract(process.env.VALIDATION || "0x8b96a09eb50409FE4c402cB9Bb9D1Ef79bbe0cEa", [
+  "function getValidationStatus(bytes32) view returns (address,uint256,uint8,bytes32,string,uint256)",
+], provider);
 
 // ---- 角色分离：本进程只当 proposer。链上 validation 一律由独立 challenger 进程
 //      （challenger/challenger-agent.mjs，部署在另一台机器）完成；本进程不持有 challenger 私钥。
@@ -231,7 +240,7 @@ async function command(agentId, body) {
   };
 }
 
-  // 5) 上链：确保 agentTEE 授权（治理自授权）→ submitReceipt（onlyTEE 路径）
+  // 5) 上链：确保 agentTEE 授权 → 提交（quote 路径优先，onlyTEE 回退）→ transcript 绑定
   const teeAddr = await regWrite.agentTEE(agentId);
   if (teeAddr.toLowerCase() !== wallet.address.toLowerCase()) {
     const authTx = await regWrite.authorizeTEE(agentId, wallet.address);
@@ -239,9 +248,39 @@ async function command(agentId, body) {
   }
   const n = await provider.getBlockNumber();
   const blk = await provider.getBlock(n);
-  const tx = await regWrite.submitReceipt(agentId, fields.pdrHash, onChainGuardrail, fields.executionHash, nonce, n, blk.hash, type === "heartbeat");
+  let tx, quoteInfo = null;
+  const quoteUrl = (process.env.QUOTE_URL || "").trim().replace(/\/$/, "");
+  if (quoteUrl && type !== "heartbeat") {
+    // quote 路径：CVM 生成绑定 semantic digest 的 TDX quote → submitReceiptWithQuote
+    //（链上 DCAP 验真 + report_data 绑定本收据；任何人可代提交）
+    const res = await fetch(`${quoteUrl}/quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reportData: fields.semantic }),
+      signal: AbortSignal.timeout(20000), // 坑 #5：fetch 必须带超时
+    });
+    if (!res.ok) throw new Error(`quote service HTTP ${res.status}`);
+    const q = await res.json();
+    if (!q.quote) throw new Error("quote service returned no quote");
+    quoteInfo = { bytes: (q.quote.length - 2) / 2 };
+    tx = await regWrite.submitReceiptWithQuote(agentId, fields.pdrHash, onChainGuardrail, fields.executionHash, nonce, n, blk.hash, false, q.quote);
+  } else {
+    // 回退：onlyTEE 路径（QUOTE_URL 未配置或心跳）
+    tx = await regWrite.submitReceipt(agentId, fields.pdrHash, onChainGuardrail, fields.executionHash, nonce, n, blk.hash, type === "heartbeat");
+  }
   const r = await tx.wait();
   const receiptDigest = await regWrite.lastReceiptHash(agentId);
+
+  // 5a) transcript 绑定：决策原文哈希锚到收据（challenger 验证依据；伪造原文必 mismatch）
+  let transcriptHashVal = ZERO32;
+  if (type !== "heartbeat") {
+    transcriptHashVal = keccak256(abi.encode(
+      ["string", "string", "address", "uint256", "bytes"],
+      [trustedCommand, marketData, target, amount, data || "0x"]
+    ));
+    const bindTx = await regWrite.bindTranscript(agentId, receiptDigest, transcriptHashVal, "aegis://orchestrator/decision");
+    await bindTx.wait();
+  }
 
   // 5b) 决策原文存证（独立 challenger 经 GET /api/decision/:digest 拉取；拉不到 = fail-closed 拒绝）
   const transcript = {
@@ -278,6 +317,35 @@ async function command(agentId, body) {
     agentId: Number(agentId),
   });
 
+  // 7) execute 流程（AGENTS 待办#1）：body.execute=true 时等待独立 challenger 链上背书
+  //    （response≥100）→ 调用 AegisVaultQuorum.executeTrade（onlyTEE）→ 金库真实转账
+  let execution = null;
+  if (body.execute && type !== "heartbeat" && vaultWrite) {
+    const WAIT_MS = Number(process.env.CHALLENGER_WAIT_MS || 45000);
+    const deadline = Date.now() + WAIT_MS;
+    let response = 0;
+    while (Date.now() < deadline) {
+      await new Promise((res) => setTimeout(res, 3000));
+      try {
+        const st = await valRead.getValidationStatus(receiptDigest);
+        response = Number(st[2]);
+        if (response >= 100) break;
+      } catch { /* 轮询失败继续等 */ }
+    }
+    if (response < 100) {
+      execution = { status: "timeout_waiting_challenger", challengerResponse: response, waitedMs: WAIT_MS };
+    } else {
+      try {
+        const execTx = await vaultWrite.executeTrade(target, amount, data || "0x");
+        const execR = await execTx.wait();
+        const balAfter = await provider.getBalance(QUORUM_VAULT);
+        execution = { status: "executed", txHash: execTx.hash, gasUsed: execR.gasUsed.toString(), vaultBalance: balAfter.toString() };
+      } catch (e) {
+        execution = { status: "execute_failed", error: String(e?.shortMessage || e?.message || e) };
+      }
+    }
+  }
+
   return {
     decision: "approved_onchain",
     dryRun: false,
@@ -285,6 +353,8 @@ async function command(agentId, body) {
     txHash: tx.hash,
     status: r.status,
     gasUsed: r.gasUsed.toString(),
+    ...(quoteInfo ? { quote: quoteInfo, submitPath: "submitReceiptWithQuote (DCAP verified)" } : { submitPath: "submitReceipt (onlyTEE fallback)" }),
+    transcriptHash: transcriptHashVal,
     newLastReceiptHash: receiptDigest,
     challenger: {
       agree: verdict.agree,
@@ -293,6 +363,7 @@ async function command(agentId, body) {
       mismatches: verdict.mismatches,
       note: "独立 challenger 进程将拉取决策原文并上链 validation（本进程不代签）",
     },
+    ...(execution ? { execution } : {}),
     ...fields,
     prev,
   };

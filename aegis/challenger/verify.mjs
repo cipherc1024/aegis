@@ -45,6 +45,17 @@ export function attestedGuardrailHash(policy) {
   return keccak256(abi.encode(["string", "bytes32"], ["guardrail-v1", policyHash(policy)]));
 }
 
+/// 决策原文哈希（与 orchestrator bindTranscript 的编码严格一致）。
+/// transcript: { command, marketData, target, amount(string), data }
+export function computeTranscriptHash(transcript) {
+  return keccak256(
+    abi.encode(
+      ["string", "string", "address", "uint256", "bytes"],
+      [transcript.command ?? "", transcript.marketData ?? "", transcript.target, BigInt(transcript.amount ?? "0"), transcript.data || "0x"]
+    )
+  );
+}
+
 // ---------- L1 策略认证 ----------
 function layer1_policy(policy, receipt) {
   const expected = attestedGuardrailHash(policy);

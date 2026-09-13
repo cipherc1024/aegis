@@ -164,6 +164,44 @@ describe("Aegis v4 contracts", function () {
     expect(await target.calls()).to.equal(1n);
   });
 
+  describe("transcript binding (bindTranscript)", () => {
+    it("TEE binds a transcript hash to the latest receipt", async () => {
+      const eh = ethers.id("exec-t1");
+      await submitReceipt({ execHash: eh });
+      const digest = await registry.lastReceiptHash(AGENT_ID);
+      const tHash = ethers.id("transcript-1");
+      await expect(registry.connect(tee).bindTranscript(AGENT_ID, digest, tHash, "ipfs://aegis-transcript"))
+        .to.emit(registry, "TranscriptBound")
+        .withArgs(AGENT_ID, digest, tHash, "ipfs://aegis-transcript");
+      expect(await registry.transcriptHash(digest)).to.equal(tHash);
+    });
+
+    it("rejects transcript binding from a non-TEE address", async () => {
+      const eh = ethers.id("exec-t2");
+      await submitReceipt({ execHash: eh });
+      const digest = await registry.lastReceiptHash(AGENT_ID);
+      await expect(
+        registry.connect(attacker).bindTranscript(AGENT_ID, digest, ethers.id("x"), "uri")
+      ).to.be.revertedWith("Not authorized TEE");
+    });
+
+    it("rejects binding to a non-latest receipt and rejects double binding", async () => {
+      const eh1 = ethers.id("exec-t3");
+      await submitReceipt({ execHash: eh1 });
+      const oldDigest = await registry.lastReceiptHash(AGENT_ID);
+      const eh2 = ethers.id("exec-t4");
+      await submitReceipt({ execHash: eh2 }); // chain advances
+      await expect(
+        registry.connect(tee).bindTranscript(AGENT_ID, oldDigest, ethers.id("x"), "uri")
+      ).to.be.revertedWith("Not latest receipt");
+      const newDigest = await registry.lastReceiptHash(AGENT_ID);
+      await registry.connect(tee).bindTranscript(AGENT_ID, newDigest, ethers.id("y"), "uri");
+      await expect(
+        registry.connect(tee).bindTranscript(AGENT_ID, newDigest, ethers.id("z"), "uri")
+      ).to.be.revertedWith("Transcript bound");
+    });
+  });
+
   describe("DCAP quote path (submitReceiptWithQuote)", () => {
     let gate;
     beforeEach(async () => {

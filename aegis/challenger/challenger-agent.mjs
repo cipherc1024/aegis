@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { JsonRpcProvider, FallbackProvider, Wallet, Contract } from "ethers";
-import { verifyDecision, attestedGuardrailHash } from "./verify.mjs";
+import { verifyDecision, attestedGuardrailHash, computeTranscriptHash } from "./verify.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ONCE = process.argv.includes("--once");
@@ -56,6 +56,7 @@ const wallet = new Wallet(pk, provider);
 const reg = new Contract(REGISTRY, [
   "function latestReceipt(uint256) view returns (bytes32 digest, bytes32 pdrHash, bytes32 guardrailHash, bytes32 executionHash, uint256 blockHeight, bytes32 blockHash, uint256 submitBlock, bytes32 nonce, bytes32 quoteHash, bool isHeartbeat, uint256 timestamp)",
   "function lastReceiptHash(uint256) view returns (bytes32)",
+  "function transcriptHash(bytes32) view returns (bytes32)",
 ], provider);
 const val = new Contract(VALIDATION, [
   "function validationRequest(address,uint256,string,bytes32)",
@@ -67,8 +68,10 @@ const vault = VAULT ? new Contract(VAULT, ["function dailySpent(uint256) view re
 // ---- 本地审计日志 + 已处理状态 ----
 const STATE_FILE = path.join(__dirname, "challenger-state.json");
 const LOG_FILE = path.join(__dirname, "challenger-log.jsonl");
-let lastProcessed = null;
-try { lastProcessed = JSON.parse(fs.readFileSync(STATE_FILE, "utf8")).lastProcessed; } catch {}
+const MAX_TRANSCRIPT_RETRIES = Number(process.env.MAX_TRANSCRIPT_RETRIES || 6); // 超过后才永久拒绝（竞态容忍窗口）
+let state = { lastProcessed: null, retries: {} };
+try { state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf8")) }; } catch {}
+function saveState() { try { fs.writeFileSync(STATE_FILE, JSON.stringify(state)); } catch {} }
 function log(entry) {
   const line = JSON.stringify({ ts: new Date().toISOString(), ...entry });
   console.log(line);
@@ -112,17 +115,49 @@ async function processReceipt(digest) {
   if (r.digest !== digest) { log({ event: "race", note: "latest changed mid-process, will retry" }); return; }
   log({ event: "receipt_seen", digest, executionHash: r.executionHash, blockHeight: Number(r.blockHeight), heartbeat: r.isHeartbeat });
 
-  // 1) 拉决策原文（fail-closed：无原文不签名）
+  // 1) 拉决策原文（可重试 fail-closed：拉不到本轮不签名，超限才永久拒绝）
   let transcript;
   try { transcript = await fetchTranscript(digest); } catch { transcript = null; }
   if (!transcript) {
-    await respond(digest, 0, ["transcript_unavailable"], { note: "no transcript, no signature (fail-closed)" });
-    lastProcessed = digest;
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ lastProcessed }));
+    const n = (state.retries[digest] ?? 0) + 1;
+    state.retries[digest] = n;
+    saveState();
+    if (n < MAX_TRANSCRIPT_RETRIES) {
+      log({ event: "transcript_retry", digest, attempt: n, note: "no transcript yet — not signing, will retry (fail-closed)" });
+      return; // 不响应、不标记已处理 → 下轮重试
+    }
+    await respond(digest, 0, ["transcript_unavailable"], { note: `no transcript after ${n} attempts — permanent reject` });
+    state.lastProcessed = digest;
+    saveState();
     return;
   }
 
-  // 2) L3 日限状态（可选；读失败则该层跳过并留痕——链上 vault 仍强制日限）
+  // 2) 链上 transcript 绑定校验（Phase 2 核心）：决策原文必须与链上锚定一致
+  const onchainTHash = await reg.transcriptHash(digest);
+  if (onchainTHash === ZERO32) {
+    // bindTranscript 可能尚未确认（竞态）——重试；超限才永久拒绝
+    const n = (state.retries[digest] ?? 0) + 1;
+    state.retries[digest] = n;
+    saveState();
+    if (n < MAX_TRANSCRIPT_RETRIES) {
+      log({ event: "bind_retry", digest, attempt: n, note: "on-chain binding not confirmed yet — will retry" });
+      return;
+    }
+    await respond(digest, 0, ["transcript_unbound"], { note: `on-chain transcriptHash unbound after ${n} attempts — permanent reject` });
+    state.lastProcessed = digest;
+    saveState();
+    return;
+  }
+  const localTHash = computeTranscriptHash(transcript);
+  if (localTHash !== onchainTHash) {
+    await respond(digest, 0, ["transcript_onchain_mismatch"], { note: "transcript does not match on-chain binding — proposer provided fabricated decision", localTHash, onchainTHash });
+    state.lastProcessed = digest;
+    saveState();
+    return;
+  }
+  log({ event: "transcript_bound_ok", digest, tHash: onchainTHash });
+
+  // 3) L3 日限状态（可选；读失败则该层跳过并留痕——链上 vault 仍强制日限）
   let dailySpent = null;
   if (vault) {
     try {
@@ -131,7 +166,7 @@ async function processReceipt(digest) {
     } catch { log({ event: "vault_read_failed", note: "daily-limit layer skipped" }); }
   }
 
-  // 3) 四层独立重推导（收据字段直读自链上；prev 来自原文，被 digest 反向锚定：
+  // 4) 四层独立重推导（收据字段直读自链上；prev 来自原文，被 digest 反向锚定：
   //    proposer 若谎报 prev，重算 digest 必与链上不符）
   const verdict = verifyDecision({
     policy,
@@ -144,10 +179,11 @@ async function processReceipt(digest) {
     agentId: AGENT_ID,
   });
 
-  // 4) 上链（独立钱包）
+  // 5) 上链（独立钱包）
   await respond(digest, verdict.response, verdict.mismatches, { layers: verdict.layers, command: transcript.command });
-  lastProcessed = digest;
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ lastProcessed }));
+  state.lastProcessed = digest;
+  state.retries[digest] = 0;
+  saveState();
 }
 
 let busy = false;
@@ -156,7 +192,7 @@ async function tick() {
   busy = true;
   try {
     const digest = await reg.lastReceiptHash(AGENT_ID);
-    if (digest !== ZERO32 && digest !== lastProcessed) await processReceipt(digest);
+    if (digest !== ZERO32 && digest !== state.lastProcessed) await processReceipt(digest);
   } catch (e) {
     log({ event: "poll_error", error: String(e?.shortMessage || e?.message || e) });
   } finally {
