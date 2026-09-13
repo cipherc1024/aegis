@@ -1,0 +1,20 @@
+services:
+  agent:
+    image: node:22-slim
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+    environment:
+      - APP_B64=${APP_B64}
+      - RPC=${RPC}
+      - PK=${PK}
+      - REGISTRY=${REGISTRY}
+      - AGENT_ID=${AGENT_ID}
+      - TARGET=${TARGET}
+      - AMOUNT=${AMOUNT}
+      - DATA=${DATA}
+      - PER_TX_LIMIT=${PER_TX_LIMIT}
+      - WHITELIST=${WHITELIST}
+      - TRUSTED_CMD=${TRUSTED_CMD}
+      - MARKET_DATA=${MARKET_DATA}
+      - BLOCKLIST=${BLOCKLIST}
+    command: ["sh", "-c", "mkdir -p /app; cd /app; npm init -y >/dev/null 2>&1; npm i --no-audit --no-fund ethers @phala/dstack-sdk 2>&1; echo $$APP_B64 | base64 -d > /app/agent.mjs; wc -c /app/agent.mjs; node /app/agent.mjs 2>&1; sleep 600"]

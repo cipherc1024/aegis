@@ -1,0 +1,26 @@
+{
+  "name": "aegis",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@automata-network/automata-dcap-attestation": "^1.1.0",
+    "@automata-network/on-chain-pccs": "^1.1.1",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.1.2",
+    "@nomicfoundation/hardhat-ethers": "^3.1.3",
+    "@openzeppelin/contracts": "^5.0.2",
+    "@phala/dcap-qvl": "^0.6.3",
+    "chai": "^4.5.0",
+    "ethers": "^6.17.0",
+    "hardhat": "^2.29.1",
+    "solady": "^0.1.26",
+    "solc": "^0.8.24"
+  }
+}

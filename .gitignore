@@ -1,0 +1,26 @@
+# ---- secrets（绝不提交） ----
+.env
+secrets.txt
+
+# ---- 依赖与构建产物 ----
+node_modules/
+.next/
+artifacts/
+cache/
+out/
+coverage/
+
+# ---- vendor（359MB Automata 合约源码 + 生成 ABI，本机可由 compile-dcap.mjs 重建） ----
+vendor/
+**/artifacts-gen/
+
+# ---- 二进制工具（219MB foundry，本机安装即可） ----
+aegis/tools/
+
+# ---- 日志与生成物 ----
+*.log
+**/receipts-cache.json
+
+# ---- 系统杂项 ----
+.DS_Store
+Thumbs.db

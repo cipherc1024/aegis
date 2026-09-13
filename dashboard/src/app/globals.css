@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-base: #0a0b0f;
+  --bg-sidebar: #0d0f13;
+  --bg-card: #12141a;
+  --bg-input: #0f1117;
+  --bg-hover: #14171d;
+  --border-base: #1e2028;
+  --border-subtle: #1a1d24;
+  --border-hover: #23262e;
+  --text-primary: #e8eaf0;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --text-muted: #4b5563;
+  --accent-cyan: #00e5cc;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+}
+
+.mono {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+/* 顶部径向光源 */
+.bg-top-glow::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse at top, rgba(0, 229, 204, 0.03), transparent 60%);
+}
+
+/* 卡片 */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-base);
+  border-radius: 12px;
+}
+.card-hover:hover {
+  border-color: var(--border-hover);
+}
+
+/* 状态脉冲 */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.dot-pulse {
+  animation: pulse-soft 1.5s ease-in-out infinite;
+}
+.dot-pulse-fast {
+  animation: pulse-soft 0.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot-pulse,
+  .dot-pulse-fast {
+    animation: none;
+  }
+}
+
+/* 收据滑入 */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-slide-in {
+  animation: slide-in 0.35s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-in {
+    animation: none;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #23262e;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

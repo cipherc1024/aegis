@@ -1,0 +1,9 @@
+services:
+  app:
+    image: python:3.12-slim
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+    environment:
+      - REPORT_DATA_HEX=${REPORT_DATA_HEX}
+      - APP_B64=${APP_B64}
+    command: ["sh", "-c", "pip install -q dstack-sdk && echo $APP_B64 | base64 -d > /app.py && python /app.py"]
