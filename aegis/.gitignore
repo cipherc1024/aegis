@@ -4,3 +4,11 @@ cache/
 out/
 .env
 secrets.txt
+
+# 运行时日志 / 本地留痕（含决策原文，可能含 prompt 内容，不入库）
+*.log
+challenger/challenger-log.jsonl
+orchestrator/decisions.jsonl
+
+# 度量实验产物（按需入库时用 --out results/xxx.json 显式指定）
+llm-divergence*.json

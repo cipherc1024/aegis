@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { JsonRpcProvider, FallbackProvider, Wallet, Contract } from "ethers";
 import { verifyDecision, attestedGuardrailHash, computeTranscriptHash } from "./verify.mjs";
+import { crossCheckWithLLM } from "./llm-challenge.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ONCE = process.argv.includes("--once");
@@ -36,6 +37,9 @@ const ORCH_URL = (process.env.ORCH_URL || "http://localhost:8787").replace(/\/$/
 const AGENT_ID = Number(process.env.AGENT_ID || 1);
 const POLL_MS = Number(process.env.POLL_MS || 4000);
 const RECORD_REJECT = process.env.RECORD_REJECT === "true"; // 拒绝也上链留证（demo 用）
+// 可选的第 5 层：独立交叉模型。未配置（默认）时行为与 Phase 2 完全一致（纯确定性 4 层）。
+// 配置后：challenger 用自己的模型（必须与 proposer 不同家族）独立提议，代码比对两侧动作。
+const MODEL_CHALLENGE = process.env.MODEL_CHALLENGE === "true";
 
 const provider = new FallbackProvider(
   RPC_LIST.map((url) => ({ provider: new JsonRpcProvider(url, 10143, { staticNetwork: true }), priority: 1, weight: 1, stallTimeout: 2500 })),
@@ -77,6 +81,13 @@ function log(entry) {
   console.log(line);
   try { fs.appendFileSync(LOG_FILE, line + "\n"); } catch {}
 }
+
+// RPC 间歇性抖动（坑 #4 变体）：FallbackProvider 后台轮询（tx.wait 内部重试）的
+// 拒绝可能逃出 await 链 —— 不全局接管会直接杀死进程（validation 已上链但
+// challenger 退出，demo 当场断线）。接管后记日志，下个 tick 继续轮询。
+process.on("unhandledRejection", (e) => {
+  log({ event: "unhandled_rejection", error: String(e?.shortMessage || e?.message || e).slice(0, 240) });
+});
 
 // ---- 拉决策原文（坑 #5：fetch 必须带超时） ----
 async function fetchTranscript(digest) {
@@ -179,8 +190,40 @@ async function processReceipt(digest) {
     agentId: AGENT_ID,
   });
 
-  // 5) 上链（独立钱包）
-  await respond(digest, verdict.response, verdict.mismatches, { layers: verdict.layers, command: transcript.command });
+  // 5) 可选第 5 层：独立交叉模型（默认关闭）。不可裁决（agree=null）→ 不签发、下轮重试。
+  let llmChallenge = null;
+  let response = verdict.response;
+  let mismatches = [...verdict.mismatches];
+  if (MODEL_CHALLENGE && verdict.agree) {
+    llmChallenge = await crossCheckWithLLM({
+      trustedCommand: transcript.command,
+      marketData: transcript.marketData,
+      transcript,
+      expectedExec: verdict.expectedExec,
+    });
+    log({ event: "llm_cross_check", digest, agree: llmChallenge.agree, reason: llmChallenge.reason });
+    if (llmChallenge.agree === null) {
+      const n = (state.retries[digest] ?? 0) + 1;
+      state.retries[digest] = n;
+      saveState();
+      if (n < MAX_TRANSCRIPT_RETRIES) {
+        log({ event: "llm_retry", digest, attempt: n, note: "challenger model cannot adjudicate — not signing (fail-closed)" });
+        return;
+      }
+      response = 0;
+      mismatches.push("challenger_model_unavailable");
+    } else if (llmChallenge.agree === false) {
+      response = 0;
+      mismatches.push("cross_model_divergence:" + llmChallenge.reason);
+    }
+  }
+
+  // 6) 上链（独立钱包）
+  await respond(digest, response, mismatches, {
+    layers: verdict.layers,
+    command: transcript.command,
+    ...(llmChallenge ? { llmChallenge: { agree: llmChallenge.agree, reason: llmChallenge.reason } } : {}),
+  });
   state.lastProcessed = digest;
   state.retries[digest] = 0;
   saveState();
@@ -200,9 +243,21 @@ async function tick() {
   }
 }
 
+// 跨家族独立性自检：同网关下，"不同模型名"未必是"不同后端"——
+// 若两侧落到同一后端，一个家族盲区会同时骗过双方，2-of-2 退化为 1-of-1。
+// 这里只能做名称层面的比对；后端是否真独立需靠实测指纹（见 scripts/probe-gateway.mjs）。
+const _chModel = process.env.LLM_CHALLENGER_MODEL || process.env.LLM_MODEL || "(mock)";
+const _prModel = process.env.LLM_MODEL || "(mock)";
+const _crossFamily = Boolean(process.env.LLM_CHALLENGER_MODEL) && _chModel !== _prModel;
+
 log({
   event: "start", address: wallet.address, attestedGuardrailHash: attested,
   registry: REGISTRY, validation: VALIDATION, orch: ORCH_URL, once: ONCE,
+  modelChallenge: MODEL_CHALLENGE, llmModel: _chModel, proposerModel: _prModel,
+  crossFamily: _crossFamily,
+  ...(MODEL_CHALLENGE && !_crossFamily
+    ? { warning: "⚠️ 未设置 LLM_CHALLENGER_MODEL（或与 proposer 同名）—— 2-of-2 会退化为 1-of-1" }
+    : {}),
 });
 if (ONCE) {
   await tick();

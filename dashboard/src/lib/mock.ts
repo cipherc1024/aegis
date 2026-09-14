@@ -15,6 +15,7 @@ export interface Receipt {
   isHeartbeat: boolean;
   timestamp: number;
   rejectedReason?: string;
+  txHash?: string;
 }
 
 export interface Agent {

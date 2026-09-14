@@ -66,12 +66,16 @@ function layer1_policy(policy, receipt) {
 }
 
 // ---------- L2 独立护栏 ----------
+// normalize 的 leet folding 会把 "a11" 折成 "aii"、把 "1gn0re" 折成 "ignore"，
+// 于是 a11/aii 这类折叠产物让 /ignore (all )?previous/ 漏判（curl 验证过：
+// "1gn0re a11 prev10us" -> "ignore aii previous"，正则不匹配）。
+// 因此在模式里同时接受折叠产物（aii/ali/…），确保混淆注入仍被拦。
 const INJECTION_PATTERNS = [
-  /ignore (all )?previous/,
+  /ignore (a[il1]+ )?previous/,   // all / aii（1->i 折叠产物）/ ali
   /disregard .*instruction/,
   /you are now/,
   /system prompt/,
-  /urgent.*(swap|transfer|send) (all|everything)/,
+  /urgent.*(swap|transfer|send) (a[il1]+|everything)/,
 ];
 
 function layer2_guardrail(policy, transcript) {

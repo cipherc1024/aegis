@@ -1,19 +1,23 @@
 "use client";
 
 import type { AgentStatus } from "./layout/Sidebar";
-import { useT } from "@/lib/i18n";
+import { useT, useL } from "@/lib/i18n";
 import { CheckCircle2, AlertTriangle, Snowflake, Lock } from "lucide-react";
 
 export function SafetyPanel({
   status,
   perTxUsed,
   dailyUsed,
+  sample,
 }: {
   status: AgentStatus;
   perTxUsed: number; // 0..1
   dailyUsed: number; // 0..1
+  /** true = 用量数字是产品愿景占位，不是链上真实值（评审可分辨） */
+  sample?: boolean;
 }) {
   const t = useT();
+  const L = useL();
 
   const checks = [
     { key: "safety.freshness", ok: status === "ok" },
@@ -43,6 +47,10 @@ export function SafetyPanel({
       </div>
 
       <div className="mt-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-muted">{t("dash.perTx")}</span>
+          {sample && <span className="rounded bg-input px-1.5 py-0.5 text-[10px] text-muted">{L("示例", "sample")}</span>}
+        </div>
         <Bar label={t("dash.perTx")} value={perTxUsed} tone="bg-cyan" />
         <Bar label={t("dash.daily")} value={dailyUsed} tone="bg-purple" />
       </div>

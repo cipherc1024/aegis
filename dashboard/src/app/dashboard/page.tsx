@@ -12,17 +12,17 @@ import { Wallet, TrendingUp, Gauge, Activity } from "lucide-react";
 export default function DashboardPage() {
   const t = useT();
   const s = useAgentStatus(1n);
-  const { receipts, live } = useReceipts(1n);
+  const { receipts, live } = useReceipts(1);
   const status = !s || !s.online ? "ok" : !s.alive ? "frozen" : !s.fresh ? "stale" : "ok";
   const statusEmoji = status === "ok" ? "🟢" : status === "stale" ? "⚠️" : "🥶";
 
   return (
     <div>
-      {/* stats */}
+      {/* stats —— 财务数字是产品愿景占位（sample），真实链上状态走 useAgentStatus */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label={t("dash.myEquity")} count={12480} prefix="$" icon={Wallet} tone="text-cyan" />
-        <StatCard label={t("dash.totalProfit")} count={1204} prefix="+$" icon={TrendingUp} tone="text-green" sub="+10.7%" />
-        <StatCard label={t("dash.todayQuota")} value="1.2 / 5 MON" icon={Gauge} tone="text-purple" />
+        <StatCard label={t("dash.myEquity")} count={12480} prefix="$" icon={Wallet} tone="text-cyan" sample />
+        <StatCard label={t("dash.totalProfit")} count={1204} prefix="+$" icon={TrendingUp} tone="text-green" sub="+10.7%" sample />
+        <StatCard label={t("dash.todayQuota")} value="1.2 / 5 MON" icon={Gauge} tone="text-purple" sample />
         <StatCard label={t("dash.agentStatus")} value={statusEmoji} icon={Activity} tone="text-green" sub={s?.online ? `block ${s.currentBlock.toLocaleString()}` : undefined} />
       </div>
 
@@ -56,7 +56,7 @@ export default function DashboardPage() {
         </div>
 
         <div>
-          <SafetyPanel status={status} perTxUsed={0.5} dailyUsed={0.24} />
+          <SafetyPanel status={status} perTxUsed={0.5} dailyUsed={0.24} sample />
         </div>
       </div>
     </div>

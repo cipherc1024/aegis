@@ -14,6 +14,24 @@ export const useLang = create<LangState>((set) => ({
   toggle: () => set((s) => ({ lang: s.lang === "zh" ? "en" : "zh" })),
 }));
 
+/**
+ * 跨页面上报「用户此刻想试的输入」。landing hero 与参数化演示页之间用它交接，
+ * 避免把中文/特殊字符塞进 URL（既丑又容易在 Windows 终端被引号吃掉）。
+ */
+interface LinkState {
+  command: string;
+  marketData: string;
+  setCommand: (c: string) => void;
+  setMarketData: (m: string) => void;
+}
+
+export const useLink = create<LinkState>((set) => ({
+  command: "buy WMON 0.01",
+  marketData: "",
+  setCommand: (command) => set({ command }),
+  setMarketData: (marketData) => set({ marketData }),
+}));
+
 const DICT: Record<string, { zh: string; en: string }> = {
   "nav.public": { zh: "公开", en: "Public" },
   "nav.user": { zh: "用户", en: "User" },

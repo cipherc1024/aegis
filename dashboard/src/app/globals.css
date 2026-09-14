@@ -57,6 +57,15 @@ body {
   border-color: var(--border-hover);
 }
 
+/* 手风琴：原生 <details> 去掉三角标 */
+details.fold > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
 /* 状态脉冲 */
 @keyframes pulse-soft {
   0%,

@@ -6,7 +6,7 @@
 ## 录制前检查清单
 
 - [ ] `cd aegis && node orchestrator/server.mjs`（读侧+写侧，端口 8787）
-- [ ] `cd dashboard && npm run dev`（端口 3000）
+- [ ] `cd dashboard && npm run build && npm start`（端口 3000；dev 与 build 共享 .next 会互相破坏）
 - [ ] 收据索引器缓存已生成：`node scripts/index-receipts.mjs`（一次性，~30 分钟；Dashboard 收据列表用）
 - [ ] 钱包余额足够（≥0.1 MON；写侧一笔交易 ~0.01 MON）
 - [ ] `aegis/.env` 含 `MONAD_TESTNET_PK`（写侧 dryRun=false 需要）
@@ -19,12 +19,13 @@
 ### 幕 1（0–15s）Dashboard 全景 + 真实交易
 
 ```powershell
-# 预先跑一笔真实交易收据（录屏前执行，或录屏时切终端执行）
-curl.exe -X POST "http://localhost:8787/api/agent/command?agentId=1" -H "Content-Type: application/json" -d "{\"command\":\"buy USDC 0.01\",\"dryRun\":false}"
-# 预期输出: decision=approved_onchain, txHash=0x…, gasUsed=138409
+# 预先跑一笔真实交易（录屏前执行，或录屏时切终端执行）：
+# 收据（链上 DCAP 验真）→ challenger 独立重推导 → executeTrade{value} → 金库真实转账
+curl.exe -X POST "http://localhost:8787/api/agent/command?agentId=1" -H "Content-Type: application/json" -d "{\"command\":\"buy WMON 0.01\",\"dryRun\":false,\"execute\":true}"
+# 预期输出: decision=approved_onchain, receipt txHash=0x…, execution.status=executed
 ```
 
-画面：Dashboard 全景 → 收据列表（索引器缓存 + 实时尾扫）→ 状态条绿色「新鲜」。
+画面：Dashboard 全景 → 收据列表（orchestrator 链上索引，tx 可点 explorer）→ 状态条绿色「新鲜」。
 
 ### 幕 2（15–40s）攻击演示：LLM 指令注入被拦截
 
@@ -38,13 +39,13 @@ curl.exe -X POST "http://localhost:8787/api/agent/command?agentId=1" -H "Content
 # 预期: {"decision":"blocked_by_guardrail","reasons":["injection_pattern","blocklist:drain",...]}
 ```
 
-画面：红色拒绝 → **拒绝决策不上链**（被拦截在 TEE 内），说明"作恶根本到不了合约层"。
-可补一刀（超限攻击）：`{"command":"buy USDC","amount":"900000000000000000"}` → `exceeds_per_tx_limit`。
+画面：红色拒绝 → **拒绝决策不上链**（被确定性护栏 δ 拦截，根本到不了合约层），说明"作恶连收据都拿不到"。
+可补一刀（超限攻击）：`{"command":"buy WMON","amount":"900000000000000000"}` → `exceeds_per_tx_limit`。
 
 ### 幕 3（40–60s）独立验证：任何人可验证，无需信任运营方
 
 Dashboard 独立验证器 → 输入收据哈希/区块 → 验证弹窗五项全绿：
-✅ 新鲜（距当前 ≤40 块）✅ 区块哈希链上验证通过 ✅ 策略匹配 ✅ 护栏哈希匹配 ✅ 哈希链完整（#n-1 → #n）
+✅ 新鲜（距当前 ≤100 块）✅ 区块哈希链上验证通过 ✅ 策略匹配 ✅ 护栏哈希匹配 ✅ 哈希链完整（#n-1 → #n）
 
 台词点：**验证逻辑在链上合约里，不在我们的服务器里**——运营方关站也不影响验证。
 可补：链上 DCAP 验证（quote → `submitReceiptWithQuote` gas 3.8M 的那笔，`scripts/read-check.mjs`）。

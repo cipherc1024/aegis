@@ -20,15 +20,20 @@ export const client = createPublicClient({
 });
 
 // 已部署（Monad testnet 10143）——见 aegis/dcap-verifier/STATUS.md
+// registry 为 Phase 2 v2（bindTranscript + MAX_BLOCK_AGE=100），
+// 旧地址 0x91482e67… 已废弃，勿改回。
 export const ADDR = {
   registry: (process.env.NEXT_PUBLIC_REGISTRY ||
-    "0x91482e67998a01C0A33Fe12ec01A6A43177A7181") as `0x${string}`,
+    "0x4622D041696942dC873a8A5E54f1e1ca9669c90B") as `0x${string}`,
   gate: (process.env.NEXT_PUBLIC_DCAP_GATE ||
     "0xAe58a4F6DD3E2810812193D4766f11d5F3Dfc66F") as `0x${string}`,
   verifier: "0x0eb496471d638173cdF35bE6b0e54FE035289F1f" as `0x${string}`,
+  vaultQuorum: (process.env.NEXT_PUBLIC_QUORUM_VAULT ||
+    "0xe6E24BB72a4a327b7A7E7aA025A04eBc5a6533D7") as `0x${string}`,
 } as const;
 
-export const MAX_BLOCK_AGE = 8n;
+// 与 ReceiptRegistry.MAX_BLOCK_AGE 保持一致（合约常量，改合约需同步这里）
+export const MAX_BLOCK_AGE = 100n;
 
 const LATEST_RECEIPT_ABI = {
   name: "latestReceipt",
