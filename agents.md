@@ -56,7 +56,7 @@ node scripts/parity-check.mjs # 期望 "10 agree / 0 diverge"
 - [x] **Proposer/Challenger 双代理互证** + `AegisVaultQuorum` 上链部署 + 链上 quorum E2E
 - [x] **Challenger 独立性包**（2026-09-13 Phase 1）：`challenger/` 自包含验证进程（4 层独立重推导 + 决策原文存证端点 + fail-closed，11 用例自测全过）；orchestrator 角色分离（不再代签 validation）；**部署到队友机器（见 challenger/README.md）即成真 2-of-2**
 - [x] **Phase 2 完成**（2026-09-13）：合约 v2 部署——ReceiptRegistry `0x4622D041...`（bindTranscript 决策原文绑定 + MAX_BLOCK_AGE=100）、AegisVaultQuorum `0xe6E24BB7...`（executeTrade 带 {value}，vault 余额真实变动）；**quote 路径上线**——Phala CVM `aegis-quote`（tdx.small 常驻，公网端点在 .env QUOTE_URL）实时生成绑定 digest 的真 TDX quote → `submitReceiptWithQuote` 链上 DCAP 验真；orchestrator execute 流程接通（AGENTS 待办#1 完成）；**全链 E2E 实测（17.6s）**：submitReceiptWithQuote（gas 3.5M，tx 0x7981eb9b...）→ challenger 四层 pass → validationResponse(100) → executeTrade（tx 0xe4902c0a...，TradeExecuted @62191167 块后）→ vault 0.5→0.48 MON；18/18 单测（新增 3 个 bindTranscript 用例）；策略变更流程实跑（白名单 → env 同步 → re-attest）；主钱包余额约 1.7 MON（challenger 回转 1.5 MON，tx 0x6a444c95...）；已知坑：Windows 下 Git Bash kill 杀不干净 node 后台进程（用 PowerShell Stop-Process），orchestrator 端口占用时新进程 EADDRINUSE 静默崩溃（重定向前先查 netstat）
-- [x] **Phase 3 完成（代码侧）**（2026-09-13）：proposer 侧**双 LLM 隔离管线**（`tee-runtime/llm.mjs` + `orchestrator/pipeline.mjs`：隔离 LLM 只抽取 facts/suspicious、无工具权限 → 特权 LLM 只吃「可信指令 + 隔离摘要」产出 typed intent，全程 fail-closed）；**信任边界显式化**（LLM 在 TEE 之外，因模型仅校园网可达 —— 该设计已从论文 P1 推导证明不削弱安全性，见 `A会论文路线图.md` §5）；challenger 新增可选 **L5 交叉模型层**（`challenger/llm-challenge.mjs`，`MODEL_CHALLENGE=true` 开启，默认关闭 = 与 Phase 2 行为逐字节一致；要求不同家族模型 + temp=0 + 确定性代码裁决，`agree=null` 表示无法裁决→不签发）；新增 `GET /api/pipeline` 只读预览端点；**语义分歧度量**实验脚本 `scripts/llm-divergence.mjs`（论文 §6 实验 1b，零 gas 离线）
+- [x] **Phase 3 完成（代码侧）**（2026-09-13）：proposer 侧**双 LLM 隔离管线**（`tee-runtime/llm.mjs` + `orchestrator/pipeline.mjs`：隔离 LLM 只抽取 facts/suspicious、无工具权限 → 特权 LLM 只吃「可信指令 + 隔离摘要」产出 typed intent，全程 fail-closed）；**信任边界显式化**（LLM 在 TEE 之外，因模型仅校园网可达 —— 该设计已从论文 P1 推导证明不削弱安全性，见 `..\..\monad论文\A会论文路线图.md` §5）；challenger 新增可选 **L5 交叉模型层**（`challenger/llm-challenge.mjs`，`MODEL_CHALLENGE=true` 开启，默认关闭 = 与 Phase 2 行为逐字节一致；要求不同家族模型 + temp=0 + 确定性代码裁决，`agree=null` 表示无法裁决→不签发）；新增 `GET /api/pipeline` 只读预览端点；**语义分歧度量**实验脚本 `scripts/llm-divergence.mjs`（论文 §6 实验 1b，零 gas 离线）
 - [x] **Phase 3 修复的口径漏洞**（重要，3 个真实 bug）：① `orchestrator` 预览护栏**未规范化 text** 就匹配 blocklist → `ev\u200Bil.com` 零宽混淆可绕过（challenger 一直是对的，会制造假性分歧）；② orchestrator `norm` 缺 leetspeak folding → `3vil.com` 两侧结论漂移；③ leet 折叠把 `a11`→`aii` 导致注入正则漏判（两侧同口径修）；④ mock LLM 用 `/ISOLATED/i` 判别分支，而 `PRIVILEGED_SYSTEM` 含 "isolated analyst" 字样 → 特权调用误入隔离分支，mock 路径整体静默失效。**新增 `scripts/parity-check.mjs`** 守住口径：同一批输入分别喂 proposer 预览与 challenger 完整重推导，断言"拒绝与否"一致（当前 10/10 agree，漂移即 exit 1）
 - [x] Hardhat 单测 **18/18 通过**（新增 3 个 bindTranscript 用例）；challenger selftest **11/11**；parity **10/10**；Dashboard 构建通过
 - [x] **Phase 3 live 完成**（2026-09-13/14）：真实校园网模型接入（USTC 网关，OpenAI 兼容，key 在 .env）——proposer=deepseek-flash / challenger=glm-5.3-flash（**经网关 token 指纹实测确认不同后端**，`scripts/probe-gateway.mjs`：smart/reasoning/qwen3.6-chat/claude-haiku-4-5 共享同一后端，glm 独立）；live E2E 已实测（网关偶发 503/超时 → fail-closed 返回 refuse，退避重试即可）
@@ -189,12 +189,14 @@ node scripts/parity-check.mjs # 期望 "10 agree / 0 diverge"
 - `aegis/hardhat.config.js` — solc 0.8.24 + viaIR + optimizer 200 + `evmVersion: paris`
 - `aegis/README.md` — 参赛级 README
 - `第四版策略.md` — 主策略文档（工作区根目录）
-- `A会论文路线图v3.md` — **把本项目升维成安全顶会（S&P/USENIX/CCS/NDSS）论文的研究路线图（最新版）**：R1 输入真实性不可能性（主）+ R2 组件必要性 + R3 机制设计 + R4 UC（冲刺）；含对 v2 错误的逐条更正
-- `新原语提案-验证闭包与选择可验证性.md` — **新原语提案（论文升级核心候选）**：验证闭包原则、选择可验证性三分谱系（T1–T5）、SOA 签署目标协议、ε-悔憾验证与 bond 定价；把 v3 的 R1 变为其 T5 特例
-- `架构创新提案-验证拓扑演算.md` — **架构级创新提案（论文最高层形态）**：验证拓扑演算 VTC——能力格+验证算子代数（o1–o8）、组合健全性定理（Fréchet–Hoeffding 任意相关）、综合算法与复杂度（Thm A/B/C）、算子集完备性；把黑客松系统/SOA 都变成综合实例，正面消解"原语组合"批评；含 §7 相邻领域必查清单（BAN logic/trust management/攻击树/runtime enforcement）
-- `精品论文制作计划.md` — **论文生产计划（最终定形）**：单篇收拢（题目/四贡献/砍单清单）、13 页骨架与页数预算、W0–W10 周计划、证明依赖图（R1 坍缩为 T5 推论）、导师协作节奏（每次带 2 页）、投稿前验收杠、止损线
-- `A会论文路线图.md` — v1 版路线图（已被 v3 取代，保留作历史）
+- `..\..\monad论文\`（即 `C:\Users\12190\Desktop\本科二年级\monad论文\`，2026-09-14 从工作区根目录移出）— **论文全部文档的独立文件夹（已有自己的 AGENTS.md，论文工作台自动加载）**：
+  - `monad论文\A会论文路线图v3.md` — **把本项目升维成安全顶会（S&P/USENIX/CCS/NDSS）论文的研究路线图（最新版）**：R1 输入真实性不可能性（主）+ R2 组件必要性 + R3 机制设计 + R4 UC（冲刺）；含对 v2 错误的逐条更正
+  - `monad论文\新原语提案-验证闭包与选择可验证性.md` — **新原语提案（论文升级核心候选）**：验证闭包原则、选择可验证性三分谱系（T1–T5）、SOA 签署目标协议、ε-悔憾验证与 bond 定价；把 v3 的 R1 变为其 T5 特例
+  - `monad论文\架构创新提案-验证拓扑演算.md` — **架构级创新提案（论文最高层形态）**：验证拓扑演算 VTC——能力格+验证算子代数（o1–o8）、组合健全性定理（Fréchet–Hoeffding 任意相关）、综合算法与复杂度（Thm A/B/C）、算子集完备性；把黑客松系统/SOA 都变成综合实例，正面消解"原语组合"批评；含 §7 相邻领域必查清单（BAN logic/trust management/攻击树/runtime enforcement）
+  - `monad论文\精品论文制作计划.md` — **论文生产计划（最终定形）**：单篇收拢（题目/四贡献/砍单清单）、13 页骨架与页数预算、W0–W10 周计划、证明依赖图（R1 坍缩为 T5 推论）、导师协作节奏（每次带 2 页）、投稿前验收杠、稳妥 A 类对冲清单（五杠杆+概率账）、止损线
+  - `monad论文\A会论文路线图.md` — v1 版路线图（已被 v3 取代，保留作历史）
 - `demo-90s-操作脚本.md` — demo 分镜脚本（用户不录视频，备用）
+- `答辩背书-完整版.md` — **答辩/评委追问背书**（金句、三大主张、14 问 Q&A、数字备查表、诚实边界清单、5 分钟答辩结构；数字与 agents.md 同步）
 - `dashboard/` — 统一入口 Dashboard：`/try` 现场跑一笔、`/architecture` 信任边界图+一键 11 负例、`/receipts` 真实索引+explorer 链接、`/orch/*` 同源代理 orchestrator
 
 ---
