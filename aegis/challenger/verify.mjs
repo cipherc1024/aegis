@@ -1,16 +1,20 @@
 // Aegis Challenger 验证器（自包含包 —— 整目录拷到 proposer 之外的机器运行，与 proposer 零共享代码）
 //
-// 4 层独立重推导（对每一层都可单独说"不"）：
+// 5 层独立重推导（L1–L5，对每一层都可单独说"不"）：
 //   L1 策略认证   收据 guardrailHash 必须等于 keccak("guardrail-v1", challenger 自持策略哈希)
 //                 —— "这笔决策声称使用的策略，必须恰好是我独立审过并持有的这一份"
 //   L2 独立护栏   自持 normalize + 注入模式表 + blocklist，独立重跑护栏
 //   L3 独立 PACE  白名单 / 单笔限额 / 日限（dailySpent 由 agent 从 vault 链上读取）
 //   L4 算术绑定   重算 executionHash / pdrHash / digest；决策原文的执行字段必须是
 //                 链上 executionHash 的 preimage —— transcript 伪造直接 mismatch
+//   L5 目标层     （SOA-lite，原文携带 objective+签名时启用）用户对目标 u 的 EIP-191
+//                 签名验证 + 执行动作对 u 的 ε-最优性检查。目标演进方向不可验证（T1），
+//                 但"给定目标后是否按目标执行"可验证 —— 崩溃点从"执行者"移到"目标制定"。
 //
 // 失败设计（fail-closed）：任何一层不通过 → response=0。
 // 无原文不签名：transcript 拉取失败 → response=0（"no transcript, no signature"）。
 import { keccak256, toUtf8Bytes, AbiCoder } from "ethers";
+import { checkObjective } from "./objective.mjs";
 
 const abi = AbiCoder.defaultAbiCoder();
 const ZERO32 = "0x" + "00".repeat(32);
@@ -157,11 +161,28 @@ export function verifyDecision({ policy, transcript, receipt, dailySpent = null,
   const l4 = layer4_arithmetic(transcript, receipt, agentId);
   layers["4_arithmetic"] = l4.mismatches.length === 0 ? "pass" : `fail:${l4.mismatches.join(",")}`;
 
+  // L5 目标层（SOA-lite）：原文携带 objective+objectiveSignature 时启用。
+  // 未携带 = proposer 未走 SOA 流程 → 该层缺席（如实标注，不假装验证过）。
+  // 时间源：优先链上收据 timestamp（不可伪造）；缺失则 null → deadline 检查 fail-closed。
+  const objMismatches = [];
+  if (transcript.objective || transcript.objectiveSignature) {
+    const o = checkObjective({
+      objective: transcript.objective,
+      signature: transcript.objectiveSignature,
+      action: { target: transcript.target, amount: transcript.amount },
+      policy,
+      timeSeconds: receipt.timestamp ?? null,
+    });
+    layers["5_objective"] = o.ok ? "pass" : `fail:${o.reasons.join(",")}`;
+    for (const r of o.reasons) objMismatches.push("challenger_objective_reject:" + r);
+  }
+
+  const mismatches = [...l4.mismatches, ...objMismatches];
   return {
-    agree: l4.mismatches.length === 0,
-    response: l4.mismatches.length === 0 ? 100 : 0,
+    agree: mismatches.length === 0,
+    response: mismatches.length === 0 ? 100 : 0,
     layers,
-    mismatches: l4.mismatches,
+    mismatches,
     expectedExec: l4.expectedExec,
   };
 }

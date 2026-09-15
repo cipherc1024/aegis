@@ -7,7 +7,7 @@ const EVENT_SIG = "ReceiptSubmitted(uint256 indexed agentId, bytes32 indexed rec
 const TOPIC0 = new Interface([`event ${EVENT_SIG}`]).getEvent("ReceiptSubmitted").topicHash;
 
 const RPC = process.env.MONAD_TESTNET_RPC || "https://testnet-rpc.monad.xyz";
-const REGISTRY = process.env.REGISTRY || "0x91482e67998a01C0A33Fe12ec01A6A43177A7181";
+const REGISTRY = process.env.REGISTRY || "0x4622D041696942dC873a8A5E54f1e1ca9669c90B"; // v2（旧 v1 已废弃）
 const AGENT_ID = 1;
 const WINDOW = 100; // RPC 硬限制
 const BATCH = 30;

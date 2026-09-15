@@ -75,7 +75,7 @@ agentId: 1 / validation response: 100 tag: tee-dcap / reputation summary: count=
 
 | 素材 | 命令/位置 |
 |---|---|
-| D6 负例 9/9 输出 | `node scripts/d6-negative.mjs`（每轮 ~0.15 MON，录制前先跑一遍存截图） |
+| D6 负例 8/8（+1 正例对照）输出 | `node scripts/d6-negative.mjs`（每轮 ~0.15 MON，真实上链，跑前先跑一遍存截图） |
 | 坏 quote 位置扫描 11/13 | `node scripts/dcap-corrupt-sweep.mjs`（全 view 零成本） |
 | In-TEE 闭环实录 | `tee/intee/`（CVM 已删，用 STATUS.md 记录的 tx 截图代替） |
 | 链上 DCAP 验证 | `scripts/dcap-verify.mjs`（gas 3.38M 那笔 tx 的 explorer 页） |

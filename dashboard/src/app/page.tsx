@@ -152,16 +152,18 @@ export default function LandingPage() {
           label={L("双模型独立性", "Model independence")}
           value={
             st?.llm?.mode === "live"
-              ? st?.llm?.crossFamily
-                ? L("跨家族", "Cross-family")
-                : L("同家族", "Same family")
+              ? st?.llm?.challengerModel
+                ? st.llm.crossFamily
+                  ? L("跨家族", "Cross-family")
+                  : L("同家族", "Same family")
+                : L("单模型", "Single model")
               : L("Mock", "Mock")
           }
           tone={st?.llm?.mode === "live" ? (st.llm.crossFamily ? "text-purple" : "text-amber") : "text-muted"}
           sub={
             st?.llm?.mode === "live"
               ? `${st.llm.model ?? "?"} / ${st.llm.challengerModel ?? "—"}`
-              : L("未配置校园网关 key", "campus gateway key unset")
+              : L("未配置 LLM key", "LLM key unset")
           }
         />
       </section>
@@ -201,8 +203,8 @@ export default function LandingPage() {
           </div>
           <p className="mt-4 rounded-lg bg-input px-3 py-2 text-[11px] leading-relaxed text-tertiary">
             {L(
-              "注意：LLM 跑在 TEE 之外。这不是妥协——判据是确定性谓词 δ（护栏 + PACE），而不是「模型在 TEE 里」。威胁模型本就假设模型完全可被操纵， challenger 用另一家族的模型和自己的代码独立重推导同一结论。",
-              "Note: the LLM runs outside the TEE — by design, not by compromise. The guarantee is the deterministic predicate δ (guardrail + PACE), not \"the model is inside the TEE\". The threat model already assumes the model is fully adversarially controlled; the challenger re-derives the same conclusion with its own code and a different model family."
+              "注意：LLM 跑在 TEE 之外。这不是妥协——判据是确定性谓词 δ（护栏 + PACE），而不是「模型在 TEE 里」。威胁模型本就假设模型完全可被操纵，challenger 用自己的代码独立重推导同一结论（可选 L5 层：另一家族模型交叉挑战）。",
+              "Note: the LLM runs outside the TEE — by design, not by compromise. The guarantee is the deterministic predicate δ (guardrail + PACE), not \"the model is inside the TEE\". The threat model already assumes the model is fully adversarially controlled; the challenger re-derives the same conclusion with its own code (an optional L5 layer adds a different model family)."
             )}
           </p>
         </div>
@@ -286,7 +288,7 @@ export default function LandingPage() {
 
 const FALLBACK_DEVICES = [
   { role: "proposer", name: "Proposer 机器", holds: ["MONAD_TESTNET_PK"], note: "双 LLM 管线 + 确定性 δ 预览；持有 TEE 私钥，可提交收据" },
-  { role: "challenger", name: "Challenger 机器（独立）", holds: ["CHALLENGER_PK"], note: "不共享代码、不共享模型家族；独立钱包上链 validation" },
+  { role: "challenger", name: "Challenger 机器（独立）", holds: ["CHALLENGER_PK"], note: "不共享代码、独立钱包上链 validation；可选 L5 跨家族模型层（默认关闭）" },
   { role: "tee", name: "Phala CVM（TDX）", holds: [], note: "实时生成绑定 digest 的 TDX quote，链上 DCAP 验真" },
 ];
 

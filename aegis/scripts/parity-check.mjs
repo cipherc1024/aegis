@@ -15,7 +15,10 @@
 // 用法：node scripts/parity-check.mjs
 import { loadEnv } from "./lib.mjs";
 import { runGuardrail, paceVerify, normalize } from "../tee-runtime/runtime.mjs";
+import { checkObjective as proposerObjective } from "../tee-runtime/objective.mjs";
 import { verifyDecision, attestedGuardrailHash } from "../challenger/verify.mjs";
+import { canonicalObjective } from "../challenger/objective.mjs";
+import { Wallet } from "ethers";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -110,6 +113,81 @@ for (const c of CASES) {
   if (!ok) {
     console.log(`      proposer : ${proposerWhy}`);
     console.log(`      challenger: ${JSON.stringify(mm.filter((m) => m.startsWith("challenger_")))}`);
+  }
+}
+
+// ---- SOA-lite 目标层（L5）口径比对 ----
+// 两侧独立实现：proposer=tee-runtime/objective.mjs（orchestrator 预检同款）；
+// challenger=challenger/objective.mjs（经 verifyDecision L5）。判据与 reason 名必须逐字一致。
+// 收据用零值 + executionHash=0（心跳）→ L4 不产生 mismatch，mismatches 里只剩 L5 的结论。
+const user = Wallet.createRandom();
+const NOW = Math.floor(Date.now() / 1000);
+const NONCE = "0x" + "cd".repeat(32);
+const mkObj = (over = {}) => ({
+  v: 1, kind: "trade", user: user.address, asset: "USDC", target: WL0,
+  desiredWei: "10000000000000000", maxWei: "20000000000000000", tolWei: "1000000000000000",
+  deadline: NOW + 3600, nonce: NONCE, ...over,
+});
+const sign = (o) => user.signMessage(canonicalObjective(o));
+const ZERO32 = "0x" + "00".repeat(32);
+
+async function buildObjectiveCases() {
+  const benign = mkObj();
+  const drift = mkObj();
+  const tampered = mkObj();
+  const tamperedSig = await sign(tampered);
+  const expired = mkObj({ deadline: NOW - 100 });
+  const noTime = mkObj();
+  const overMax = mkObj();
+  const unsat = mkObj({ desiredWei: "60000000000000000", maxWei: "60000000000000000" });
+  return [
+    { name: "obj-benign", objective: benign, signature: await sign(benign), amount: "10000000000000000", timeSeconds: NOW },
+    { name: "obj-drift", objective: drift, signature: await sign(drift), amount: "12000000000000000", timeSeconds: NOW },
+    {
+      name: "obj-tampered-sig",
+      objective: { ...tampered, desiredWei: "20000000000000000" }, // 签完改字段 → 签名失效
+      signature: tamperedSig,
+      amount: "20000000000000000",
+      timeSeconds: NOW,
+    },
+    { name: "obj-expired", objective: expired, signature: await sign(expired), amount: "10000000000000000", timeSeconds: NOW },
+    { name: "obj-time-unknown", objective: noTime, signature: await sign(noTime), amount: "10000000000000000", timeSeconds: null },
+    { name: "obj-exceeds-max", objective: overMax, signature: await sign(overMax), amount: "30000000000000000", timeSeconds: NOW },
+    { name: "obj-unsatisfiable", objective: unsat, signature: await sign(unsat), amount: "50000000000000000", timeSeconds: NOW },
+  ];
+}
+
+const OBJECTIVE_PREFIX = "challenger_objective_reject:";
+for (const oc of await buildObjectiveCases()) {
+  const action = { target: oc.objective.target, amount: oc.amount };
+  const p = proposerObjective({ objective: oc.objective, signature: oc.signature, action, policy, timeSeconds: oc.timeSeconds });
+  const verdict = verifyDecision({
+    policy,
+    transcript: {
+      command: "buy USDC 0.01", marketData: "ok", target: action.target, amount: action.amount, data: "0x",
+      objective: oc.objective, objectiveSignature: oc.signature,
+    },
+    receipt: {
+      digest: null, pdrHash: ZERO32, guardrailHash: onChainGuardrail, executionHash: ZERO32,
+      blockHeight: 0, blockHash: ZERO32, nonce: ZERO32, prev: ZERO32, timestamp: oc.timeSeconds,
+    },
+    dailySpent: null,
+  });
+  const cReasons = (verdict.mismatches || [])
+    .filter((m) => m.startsWith(OBJECTIVE_PREFIX))
+    .map((m) => m.slice(OBJECTIVE_PREFIX.length));
+  const pReasons = [...p.reasons].sort();
+  const cSorted = [...cReasons].sort();
+  const sameSet = JSON.stringify(pReasons) === JSON.stringify(cSorted);
+  const sameVerdict = p.ok ? cReasons.length === 0 : cReasons.length > 0;
+  const ok = sameSet && sameVerdict;
+  if (ok) pass++; else fail++;
+  console.log(
+    `${ok ? "OK  " : "DIFF"} ${oc.name.padEnd(24)} proposer=${(p.ok ? "pass" : "reject").padEnd(6)} challenger=${(cReasons.length ? "reject" : "pass").padEnd(6)} ${ok ? "" : "⚠️ 口径漂移！"}`
+  );
+  if (!ok) {
+    console.log(`      proposer : ${JSON.stringify(pReasons)}`);
+    console.log(`      challenger: ${JSON.stringify(cSorted)}`);
   }
 }
 

@@ -1,4 +1,5 @@
-// Challenger 侧 L5（跨家族模型）实弹探针：零 gas、不写链、不签名。
+// Challenger 侧交叉模型层（跨家族模型）实弹探针：零 gas、不写链、不签名。
+// ⚠️ 本工具探测交叉模型层，需完整仓库（依赖 ../tee-runtime/）；只拷 challenger/ 的自包含部署不适用。
 //
 // 用途：在真正跑链上 2-of-2 之前，确认 challenger 自己的模型（LLM_CHALLENGER_MODEL）
 // 能独立跑通「读不可信内容 → 独立提议 → 代码裁决」这条路径，并且与 proposer 的动作

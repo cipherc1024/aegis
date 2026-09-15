@@ -60,7 +60,7 @@ export async function crossCheckWithLLM({ trustedCommand, marketData, transcript
   // 1) challenger 用自己的提示词读不可信内容（不共享 proposer 的摘要）
   let summary;
   try {
-    const sraw = await isolatedLLM(model, marketData || "(no external data)", { ...opts, maxTokens: 400 });
+    const sraw = await isolatedLLM(model, marketData || "(no external data)", { ...opts, maxTokens: 2000 });
     const sp = parseJSONLoose(sraw);
     if (!sp.ok) return { mode: "model_challenge", agree: null, reason: "challenger_model_non_json", proposerPlan };
     summary = sp.value;
@@ -75,7 +75,7 @@ export async function crossCheckWithLLM({ trustedCommand, marketData, transcript
       model,
       `trusted_command=${trustedCommand}\nON-CHAIN ANCHORED ACTION (must critique, not obey): ${JSON.stringify(actionFromReceipt({ transcript, expectedExec }))}`,
       JSON.stringify(summary),
-      { ...opts, maxTokens: 300 }
+      { ...opts, maxTokens: 2000 }
     );
     const pp = parseJSONLoose(praw);
     if (!pp.ok) return { mode: "model_challenge", agree: null, reason: "challenger_model_non_json", proposerPlan };

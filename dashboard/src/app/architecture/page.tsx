@@ -310,7 +310,7 @@ const PIPELINE: { zh: string; en: string; d: string; outside?: boolean; boundary
   { zh: "δ② PACE", en: "δ② PACE", d: "白名单 → 单笔上限 → 日限 → 评审上限", outside: true },
   { zh: "TEE 生成 quote", en: "TEE quote", d: "get_quote(report_data = semanticDigest)", boundary: true },
   { zh: "收据上链", en: "Receipt on-chain", d: "submitReceiptWithQuote：链上 DCAP 验真 + 绑定 blockhash" },
-  { zh: "challenger 独立重推导", en: "Challenger re-derivation", d: "自己的代码 + 另一家族模型 → 比对 executionHash/pdrHash/digest" },
+  { zh: "challenger 独立重推导", en: "Challenger re-derivation", d: "自己的代码（零共享）→ 比对 executionHash/pdrHash/digest；可选 L5 跨家族层" },
   { zh: "validation 上链", en: "Validation on-chain", d: "validationResponse(requestHash = 收据 digest, 100 / 0)" },
   { zh: "金库硬闸门", en: "Vault hard gate", d: "response ≥ 100 才放行 executeTrade（onlyTEE）" },
 ];

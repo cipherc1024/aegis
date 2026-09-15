@@ -20,7 +20,7 @@ for (const f of [path.join(__dirname, ".env"), path.join(__dirname, "..", ".env"
 const policy = JSON.parse(fs.readFileSync(path.join(__dirname, "challenger-policy.json"), "utf8"));
 const attested = attestedGuardrailHash(policy);
 const AGENT_ID = Number(process.env.AGENT_ID || 1);
-const REGISTRY = process.env.REGISTRY || "0x91482e67998a01C0A33Fe12ec01A6A43177A7181";
+const REGISTRY = process.env.REGISTRY || "0x4622D041696942dC873a8A5E54f1e1ca9669c90B";
 
 console.log("challenger attested guardrailHash:", attested);
 

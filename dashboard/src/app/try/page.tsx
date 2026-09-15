@@ -77,8 +77,8 @@ export default function TryPage() {
       if (!p) {
         setError(
           L(
-            "orchestrator 不可达（或模型超时）。请确认已运行 node orchestrator/server.mjs，且本机在校园网内。",
-            "orchestrator unreachable (or model timed out). Make sure `node orchestrator/server.mjs` is running and you're on the campus network."
+            "orchestrator 不可达（或模型超时）。请确认已运行 node orchestrator/server.mjs，且 LLM 端点可达。",
+            "orchestrator unreachable (or model timed out). Make sure `node orchestrator/server.mjs` is running and the LLM endpoint is reachable."
           )
         );
         return;
@@ -122,8 +122,8 @@ export default function TryPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{L("现场跑一笔", "Run a live decision")}</h1>
         <p className="mt-2 text-sm text-secondary">
           {L(
-            "输入一条可信指令与一段外部内容。系统会真实调用校园网双模型管线，再由两套独立实现各自给出裁决——注意看「模型说了什么」与「系统最终放不放行」是两件事。",
-            "Type a trusted command and some external content. The system really calls the campus dual-model pipeline, then two independent implementations each return a verdict — note that what the model says and what the system allows are different things."
+            "输入一条可信指令与一段外部内容。系统会真实调用双 LLM 隔离管线，再由两套独立实现各自给出裁决——注意看「模型说了什么」与「系统最终放不放行」是两件事。",
+            "Type a trusted command and some external content. The system really calls the dual-LLM isolation pipeline, then two independent implementations each return a verdict — note that what the model says and what the system allows are different things."
           )}
         </p>
       </div>

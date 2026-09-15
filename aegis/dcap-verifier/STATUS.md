@@ -111,7 +111,7 @@ ROOT cert / SIGNING cert / PLATFORM cert / root CA CRL / PCK CRL / TCB info / QE
 - 注意：ethers v6 同名重载需用完整签名做 key（`encodeFunctionData("register(string)", …)`），否则 "ambiguous function description"
 
 ## D6 负例测试完成（2026-09-12）
-- 脚本：`scripts/d6-negative.mjs`（fresh ReceiptRegistry + 真 quote，9 项攻击向量）
+- 脚本：`scripts/d6-negative.mjs`（fresh ReceiptRegistry + 真 quote，8 项攻击向量 + 1 正例对照）
 - 结果（8+1/9，各层 revert 原因逐项核对）：
   - A1 过期锚点(blockHeight-50) → `Stale attestation` ✅
   - A2 伪造区块锚点 → `Block hash mismatch` ✅

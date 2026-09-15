@@ -7,7 +7,8 @@ import http from "node:http";
 import fs from "node:fs";
 import { JsonRpcProvider, FallbackProvider, Wallet, Contract, keccak256, toUtf8Bytes, AbiCoder } from "ethers";
 import { verifyDecision, attestedGuardrailHash } from "../challenger/verify.mjs";
-import { runLLMPipeline, llmMeta, DATA_DEFAULT, assetMap } from "./pipeline.mjs";
+import { checkObjective as objectivePrecheck, objectiveHash } from "../tee-runtime/objective.mjs";
+import { runLLMPipeline, draftObjective, llmMeta, DATA_DEFAULT, assetMap } from "./pipeline.mjs";
 
 // ---- env（零依赖加载，不覆盖已有） ----
 if (fs.existsSync(".env")) {
@@ -22,13 +23,14 @@ const RPC_LIST = [
   process.env.MONAD_TESTNET_RPC || "https://testnet-rpc.monad.xyz",
   "https://rpc.ankr.com/monad_testnet",
 ];
-const REGISTRY = process.env.REGISTRY || "0x91482e67998a01C0A33Fe12ec01A6A43177A7181";
+// v2 部署（与 challenger-agent.mjs / .env.example 一致；旧 v1 0x91482e67… 已废弃，勿用）
+const REGISTRY = process.env.REGISTRY || "0x4622D041696942dC873a8A5E54f1e1ca9669c90B";
 const PER_TX_LIMIT = BigInt(process.env.PER_TX_LIMIT || "50000000000000000"); // 0.05 MON
 const WHITELIST = (process.env.WHITELIST || "0x000000000000000000000000000000000000beef").split(",").map((x) => x.toLowerCase());
 const BLOCKLIST = (process.env.BLOCKLIST || "evil.com,attacker,drain,ignore previous").split(",").filter(Boolean);
 const TRUSTED_CMD = process.env.TRUSTED_CMD || "buy USDC 0.01";
 // 单笔上限：链上合约可执行的最大金额（cap）与对外展示的「评审可试输入」上限分开。
-// 原因：校园网关的免费模型延迟常在 20-40s 甚至超时，demo 需要更小的默认金额
+// 原因：LLM 端点延迟常在 20-40s 甚至超时，demo 需要更小的默认金额
 // 以压低失败代价；但 δ 的边界必须与链上合约一致，否则超限负例会失效。
 const DEMO_MAX_MON = Number(process.env.DEMO_MAX_MON || "0.1");
 
@@ -82,6 +84,11 @@ const CHALLENGER_POLICY = JSON.parse(fs.readFileSync(new URL("../challenger/chal
 
 // ---- 决策原文存证：独立 challenger 经 GET /api/decision/:digest 拉取（拉不到 = fail-closed 拒绝） ----
 const decisions = new Map();
+// 交易在途窗口：trade 收据已上链但 challenger 未背书/未执行完的期间，心跳不得插入——
+// 否则 lastReceiptHash 被心跳顶掉，executeTrade 的 quorum 钩子会读到未验证的心跳 digest
+// → revert "No challenger quorum"（金库 fail-closed，资金安全，但交易作废需重跑）。
+// 时间自愈：异常路径无需清理，窗口自然过期。
+let tradePendingUntil = 0;
 const DECISIONS_FILE = "orchestrator/decisions.jsonl";
 try {
   for (const line of fs.readFileSync(DECISIONS_FILE, "utf8").split(/\r?\n/)) {
@@ -201,9 +208,15 @@ const ASSETS = assetMap(WHITELIST);
 
 async function command(agentId, body) {
   const type = body.type === "heartbeat" ? "heartbeat" : "trade";
+  if (type === "heartbeat" && Date.now() < tradePendingUntil) {
+    return { decision: "heartbeat_deferred", reason: "trade_pending_challenger", dryRun: body.dryRun !== false };
+  }
   const dryRun = body.dryRun !== false;
   const trustedCommand = body.command || TRUSTED_CMD;
   const marketData = body.marketData || "";
+  // SOA-lite：用户签署的目标（可选）。携带时进入 L5 目标层；不携带则该层缺席（如实标注）
+  const objective = body.objective || null;
+  const objectiveSignature = body.objectiveSignature || null;
 
   // 1) 护栏（对可信指令与外部内容；注入模式 + blocklist）
   const reasons = runGuardrail(`${trustedCommand} ${marketData}`, BLOCKLIST);
@@ -251,11 +264,32 @@ async function command(agentId, body) {
     }
   }
 
+  // 2.6) SOA-lite 目标层预检（仅当调用方携带签署目标时启用）：与 challenger L5 同判据
+  //（tee-runtime/objective.mjs 与 challenger/objective.mjs 两套独立实现，口径由
+  //  scripts/parity-check.mjs 守）。放在 PACE 之后：层序与 challenger 一致（PACE 优先）。
+  // 这里用本地时钟；challenger 用链上收据 timestamp 独立重做（见 verify.mjs L5）。
+  if (type !== "heartbeat" && (objective || objectiveSignature)) {
+    const oc = objectivePrecheck({
+      objective,
+      signature: objectiveSignature,
+      action: { target, amount },
+      policy: CHALLENGER_POLICY,
+      timeSeconds: Math.floor(Date.now() / 1000),
+    });
+    if (!oc.ok) return { decision: "rejected_by_objective", reasons: oc.reasons, dryRun, llm: llmTrace };
+  }
+
   // 3) 链上状态：prev + 治理登记的护栏哈希
-  const [prev, onChainGuardrail] = await Promise.all([
-    reg.lastReceiptHash(agentId),
-    reg.agentGuardrailHash(agentId),
-  ]);
+  // RPC 后端是负载均衡池，偶发命中滞后后端返回陈旧值（2026-09-15 实测有后端落后 ~39k 块）；
+  // prev 是 digest 预计算与 challenger L4 反向锚定的关键输入，读到旧值会白烧一笔 gas，
+  // 故读两次求一致（不一致则以最新一次为准再读，最多 5 次）。
+  const onChainGuardrail = await reg.agentGuardrailHash(agentId);
+  let prev = await reg.lastReceiptHash(agentId);
+  for (let i = 0; i < 4; i++) {
+    const again = await reg.lastReceiptHash(agentId);
+    if (String(again).toLowerCase() === String(prev).toLowerCase()) break;
+    prev = again;
+  }
   if (onChainGuardrail === ZERO32) {
     return { decision: "error", reason: "guardrail not registered on-chain (governance must setGuardrailHash first)", dryRun };
   }
@@ -266,10 +300,13 @@ async function command(agentId, body) {
 
   if (dryRun || !wallet) {
   // challenger 离线预览（零 gas）：独立 challenger 进程将对这笔决策说什么
+  // 时间源说明：dry-run 无链上收据，只能用本地时钟；真实路径 challenger 一律用
+  // 链上收据 timestamp（见 verify.mjs L5）——两者只在 deadline 边界秒级窗口有别。
+  const nowSec = Math.floor(Date.now() / 1000);
   const previewVerdict = verifyDecision({
     policy: CHALLENGER_POLICY,
-    transcript: { command: trustedCommand, marketData, target, amount: amount.toString(), data },
-    receipt: { pdrHash: fields.pdrHash, guardrailHash: onChainGuardrail, executionHash: fields.executionHash, blockHeight: 0, blockHash: ZERO32, nonce, digest: null, prev },
+    transcript: { command: trustedCommand, marketData, target, amount: amount.toString(), data, ...(objective ? { objective, objectiveSignature } : {}) },
+    receipt: { pdrHash: fields.pdrHash, guardrailHash: onChainGuardrail, executionHash: fields.executionHash, blockHeight: 0, blockHash: ZERO32, nonce, digest: null, prev, timestamp: nowSec },
     dailySpent: vaultDaily ? vaultDaily.spentToday : null,
     agentId: Number(agentId),
   });
@@ -296,6 +333,7 @@ async function command(agentId, body) {
 }
 
   // 5) 上链：确保 agentTEE 授权 → 提交（quote 路径优先，onlyTEE 回退）→ transcript 绑定
+  tradePendingUntil = Date.now() + 60000; // 在途窗口自愈；正常完成在下方 return 前清零
   const teeAddr = await regWrite.agentTEE(agentId);
   if (teeAddr.toLowerCase() !== wallet.address.toLowerCase()) {
     const authTx = await regWrite.authorizeTEE(agentId, wallet.address);
@@ -324,16 +362,32 @@ async function command(agentId, body) {
     tx = await regWrite.submitReceipt(agentId, fields.pdrHash, onChainGuardrail, fields.executionHash, nonce, n, blk.hash, type === "heartbeat");
   }
   const r = await tx.wait();
-  const receiptDigest = await regWrite.lastReceiptHash(agentId);
+  // 收据 digest 由合约字段唯一决定，客户端可预计算。tx.wait() 后立即读 lastReceiptHash
+  // 可能命中滞后节点（FallbackProvider quorum=1）拿到旧值，曾导致 bindTranscript
+  // 假失败 "Not latest receipt"（2026-09-15 实测）。轮询对齐最多 ~5s，正常情况零延迟。
+  const expectedDigest = keccak256(abi.encode(
+    ["uint256", "bytes32", "bytes32", "bytes32", "uint256", "bytes32", "bytes32", "bytes32"],
+    [agentId, fields.pdrHash, onChainGuardrail, fields.executionHash, n, blk.hash, prev, nonce]
+  ));
+  let receiptDigest = expectedDigest;
+  for (let i = 0; i < 8; i++) {
+    const seen = await regWrite.lastReceiptHash(agentId);
+    if (String(seen).toLowerCase() === expectedDigest.toLowerCase()) { receiptDigest = seen; break; }
+    if (i === 7) throw new Error(`lastReceiptHash 未对齐：chain=${seen} expected=${expectedDigest}（RPC 滞后或并发提交？）`);
+    await new Promise((res) => setTimeout(res, 700));
+  }
 
   // 5a) transcript 绑定：决策原文哈希锚到收据（challenger 验证依据；伪造原文必 mismatch）
+  // 携带签署目标时，URI 字段改为 aegis://objective/<objectiveHash>：目标摘要随
+  // TranscriptBound 事件上链留痕（零合约改动；事件可被任何人索引核对）
   let transcriptHashVal = ZERO32;
   if (type !== "heartbeat") {
     transcriptHashVal = keccak256(abi.encode(
       ["string", "string", "address", "uint256", "bytes"],
       [trustedCommand, marketData, target, amount, data || "0x"]
     ));
-    const bindTx = await regWrite.bindTranscript(agentId, receiptDigest, transcriptHashVal, "aegis://orchestrator/decision");
+    const uri = objective ? `aegis://objective/${objectiveHash(objective)}` : "aegis://orchestrator/decision";
+    const bindTx = await regWrite.bindTranscript(agentId, receiptDigest, transcriptHashVal, uri);
     await bindTx.wait();
   }
 
@@ -353,6 +407,8 @@ async function command(agentId, body) {
     blockHeight: n,
     blockHash: blk.hash,
     prev,
+    // SOA-lite：签署目标随原文存证（challenger L5 据此验证签名与 ε-最优性）
+    ...(objective ? { objective, objectiveSignature, objectiveHash: objectiveHash(objective) } : {}),
     // LLM 决策轨迹（隔离摘要 + 特权输出）随原文存证：challenger 据此判断
     // "模型多经常提出需被 δ 拦截的动作"（论文 §6 语义分歧度量），也便于审计复现
     ...(llmTrace ? { llm: llmTrace } : {}),
@@ -367,10 +423,11 @@ async function command(agentId, body) {
   recordDecision(transcript);
 
   // 6) challenger 预览（离线）：链上 validation 由独立 challenger 进程/机器完成 —— proposer 不代签
+  // timestamp 用提交时取的链上块时间（与 challenger 读到的收据 timestamp 同源，秒级接近）
   const verdict = verifyDecision({
     policy: CHALLENGER_POLICY,
     transcript,
-    receipt: { digest: receiptDigest, pdrHash: fields.pdrHash, guardrailHash: onChainGuardrail, executionHash: fields.executionHash, blockHeight: n, blockHash: blk.hash, nonce, prev },
+    receipt: { digest: receiptDigest, pdrHash: fields.pdrHash, guardrailHash: onChainGuardrail, executionHash: fields.executionHash, blockHeight: n, blockHash: blk.hash, nonce, prev, timestamp: blk.timestamp },
     dailySpent: vaultDaily ? vaultDaily.spentToday : null,
     agentId: Number(agentId),
   });
@@ -379,7 +436,9 @@ async function command(agentId, body) {
   //    （response≥100）→ 调用 AegisVaultQuorum.executeTrade（onlyTEE）→ 金库真实转账
   let execution = null;
   if (body.execute && type !== "heartbeat" && vaultWrite) {
-    const WAIT_MS = Number(process.env.CHALLENGER_WAIT_MS || 45000);
+    // 等待窗须 < 链上 MAX_BLOCK_AGE（100 块 ≈ 30s @300ms）：isTradeFresh 从收据提交块起算，
+    // 慢 challenger 拖过 30s 后 executeTrade 会因 "No fresh trade receipt" revert——白烧 gas。
+    const WAIT_MS = Number(process.env.CHALLENGER_WAIT_MS || 20000);
     const deadline = Date.now() + WAIT_MS;
     let response = 0;
     while (Date.now() < deadline) {
@@ -404,6 +463,7 @@ async function command(agentId, body) {
     }
   }
 
+  tradePendingUntil = 0;
   return {
     decision: "approved_onchain",
     dryRun: false,
@@ -469,7 +529,7 @@ const server = http.createServer(async (req, res) => {
         trustBoundary: {
           devices: [
             { role: "proposer", name: "Proposer 机器（本机）", holds: ["MONAD_TESTNET_PK"], note: "双 LLM 管线 + 确定性 δ 预览；持有 TEE 私钥，可提交收据" },
-            { role: "challenger", name: "Challenger 机器（独立）", holds: ["CHALLENGER_PK"], note: "不共享代码、不共享模型家族；独立钱包上链 validation" },
+            { role: "challenger", name: "Challenger 机器（独立）", holds: ["CHALLENGER_PK"], note: "不共享代码、独立钱包上链 validation；可选 L5 跨家族模型层（默认关闭）" },
             { role: "tee", name: "Phala CVM（TDX）", holds: [], note: "实时生成绑定 digest 的 TDX quote，链上 DCAP 验真" },
           ],
           llmPlacement: "proposer",
@@ -559,6 +619,32 @@ const server = http.createServer(async (req, res) => {
       return send(200, out);
     }
 
+    // SOA-lite：目标草案（draft-then-sign 的 draft 半步，零 gas）。
+    // 返回未签名目标草案；签名在任何涉及资金的地方之外完成（scripts/soa-sign.mjs 或钱包）。
+    if (url.pathname === "/api/objective/draft" && req.method === "POST") {
+      let raw = "";
+      for await (const chunk of req) raw += chunk;
+      let b = {};
+      try { b = raw ? JSON.parse(raw) : {}; } catch { return send(400, { error: "invalid JSON body" }); }
+      const cmd = b.command || TRUSTED_CMD;
+      const md = b.marketData || "";
+      const d = await draftObjective({ trustedCommand: cmd, marketData: md, assets: ASSETS });
+      if (d.kind !== "objective") {
+        return send(200, { kind: d.kind, stage: d.stage, reason: d.reason, llm: llmMeta(), steps: d.steps });
+      }
+      return send(200, {
+        kind: "objective",
+        command: cmd,
+        marketData: md,
+        asset: d.asset,
+        target: d.target,
+        draft: d.draft, // 未签名：user 字段待签署方填入
+        llm: llmMeta(),
+        steps: d.steps,
+        note: "draft 尚未签名，无任何效力；签署流程：填入 user 字段 → EIP-191 签 canonical JSON → 随 /api/agent/command 提交",
+      });
+    }
+
     if (url.pathname.startsWith("/api/decision/") && req.method === "GET") {
       const hash = url.pathname.slice("/api/decision/".length).toLowerCase();
       const d = decisions.get(hash);
@@ -596,6 +682,7 @@ const server = http.createServer(async (req, res) => {
 
     send(404, { error: "not found" });
   } catch (e) {
+    console.error("[orchestrator] request error:", e?.shortMessage || e?.message || e);
     send(500, { error: String(e?.shortMessage || e?.message || e) });
   }
 });

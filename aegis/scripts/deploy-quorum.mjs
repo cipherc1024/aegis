@@ -3,7 +3,7 @@ import { loadEnv, getWallet, deploy } from "./lib.mjs";
 loadEnv();
 const wallet = getWallet();
 
-const REGISTRY = "0x91482e67998a01C0A33Fe12ec01A6A43177A7181"; // ReceiptRegistry
+const REGISTRY = "0x4622D041696942dC873a8A5E54f1e1ca9669c90B"; // ReceiptRegistry v2（旧 v1 已废弃）
 const VALIDATION = "0x8b96a09eb50409FE4c402cB9Bb9D1Ef79bbe0cEa"; // ERC-8004 ValidationRegistry
 const AGENT_ID = 1n;
 const TEE = "0x2a0eECA027B617F5e6f631a5475dc283294Ff0a9"; // proposer TEE signer（主钱包代）

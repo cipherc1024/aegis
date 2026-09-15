@@ -1,15 +1,17 @@
 // Aegis Challenger Agent —— 独立进程（把整个 challenger/ 目录拷到 proposer 之外的机器运行）
+// 自包含范围：确定性层 L1–L5（verify/objective/selftest 只依赖目录内文件 + ethers）。
+// 可选交叉模型层（MODEL_CHALLENGE=true）需完整仓库（challenger/ 与 ../tee-runtime/ 同级）；
+// 自包含部署保持默认 MODEL_CHALLENGE=false，该模块仅在显式开启时动态加载。
 // 通信面：Monad 公共 RPC（读链+上链）+ orchestrator HTTP（拉决策原文，出站连接）。
 // 无需开放入站端口；跨网段用任意一行隧道（如 cloudflared）即可。
 // 循环：轮询链上最新收据 → 直读收据字段（不信 orchestrator）→ 拉原文（拉不到 = fail-closed 拒绝）
-//       → 4 层独立重推导 → 独立钱包上链 validationRequest + validationResponse。
+//       → 5 层独立重推导（L1–L5）→ 独立钱包上链 validationRequest + validationResponse。
 // 用法：node challenger-agent.mjs [--once]
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { JsonRpcProvider, FallbackProvider, Wallet, Contract } from "ethers";
 import { verifyDecision, attestedGuardrailHash, computeTranscriptHash } from "./verify.mjs";
-import { crossCheckWithLLM } from "./llm-challenge.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ONCE = process.argv.includes("--once");
@@ -30,16 +32,28 @@ const RPC_LIST = [
   process.env.MONAD_TESTNET_RPC || "https://testnet-rpc.monad.xyz",
   "https://rpc.ankr.com/monad_testnet",
 ];
-const REGISTRY = process.env.REGISTRY || "0x91482e67998a01C0A33Fe12ec01A6A43177A7181";
+const REGISTRY = process.env.REGISTRY || "0x4622D041696942dC873a8A5E54f1e1ca9669c90B";
 const VALIDATION = process.env.VALIDATION || "0x8b96a09eb50409FE4c402cB9Bb9D1Ef79bbe0cEa";
 const VAULT = process.env.VAULT || process.env.QUORUM_VAULT || ""; // 可选：读 dailySpent 做 L3 日限
 const ORCH_URL = (process.env.ORCH_URL || "http://localhost:8787").replace(/\/$/, "");
 const AGENT_ID = Number(process.env.AGENT_ID || 1);
 const POLL_MS = Number(process.env.POLL_MS || 4000);
 const RECORD_REJECT = process.env.RECORD_REJECT === "true"; // 拒绝也上链留证（demo 用）
-// 可选的第 5 层：独立交叉模型。未配置（默认）时行为与 Phase 2 完全一致（纯确定性 4 层）。
-// 配置后：challenger 用自己的模型（必须与 proposer 不同家族）独立提议，代码比对两侧动作。
+// 可选交叉模型层：challenger 用自己的（不同家族）模型独立提议，代码比对两侧动作。
+// 未配置（默认）时行为与 Phase 2 完全一致（纯确定性重推导，无模型参与）。
 const MODEL_CHALLENGE = process.env.MODEL_CHALLENGE === "true";
+// 交叉模型层用动态 import：llm-challenge.mjs 依赖 ../tee-runtime/，若静态 import，
+// 自包含部署（只拷 challenger/）会在启动时 ERR_MODULE_NOT_FOUND——即使该层默认关闭。
+// 显式开启但缺依赖时启动即退出（fail-closed，不静默降级）。
+let crossCheckWithLLM = null;
+if (MODEL_CHALLENGE) {
+  try {
+    ({ crossCheckWithLLM } = await import("./llm-challenge.mjs"));
+  } catch (e) {
+    console.error("[challenger] MODEL_CHALLENGE=true 需要完整仓库（challenger/ 与 tee-runtime/ 同级）；自包含部署请设 MODEL_CHALLENGE=false");
+    process.exit(1);
+  }
+}
 
 const provider = new FallbackProvider(
   RPC_LIST.map((url) => ({ provider: new JsonRpcProvider(url, 10143, { staticNetwork: true }), priority: 1, weight: 1, stallTimeout: 2500 })),
@@ -126,6 +140,15 @@ async function processReceipt(digest) {
   if (r.digest !== digest) { log({ event: "race", note: "latest changed mid-process, will retry" }); return; }
   log({ event: "receipt_seen", digest, executionHash: r.executionHash, blockHeight: Number(r.blockHeight), heartbeat: r.isHeartbeat });
 
+  // 心跳收据：无执行体、无 transcript 绑定（bindTranscript 仅交易路径），不参与重推导。
+  // 跳过而非走重试拒绝——重试 6 次只会白等 ~24s 再记一次无意义的 response=0。
+  if (r.isHeartbeat) {
+    log({ event: "heartbeat_skipped", digest, note: "no transcript by design — not a validation target" });
+    state.lastProcessed = digest;
+    saveState();
+    return;
+  }
+
   // 1) 拉决策原文（可重试 fail-closed：拉不到本轮不签名，超限才永久拒绝）
   let transcript;
   try { transcript = await fetchTranscript(digest); } catch { transcript = null; }
@@ -185,12 +208,13 @@ async function processReceipt(digest) {
     receipt: {
       digest: r.digest, pdrHash: r.pdrHash, guardrailHash: r.guardrailHash, executionHash: r.executionHash,
       blockHeight: r.blockHeight, blockHash: r.blockHash, nonce: r.nonce, prev: transcript.prev,
+      timestamp: r.timestamp, // L5 目标层的时间源（链上时钟，不可伪造）
     },
     dailySpent,
     agentId: AGENT_ID,
   });
 
-  // 5) 可选第 5 层：独立交叉模型（默认关闭）。不可裁决（agree=null）→ 不签发、下轮重试。
+  // 5) 可选交叉模型层（默认关闭；叠加在 1–5 层确定性重推导之上，不改动其结论）。不可裁决（agree=null）→ 不签发、下轮重试。
   let llmChallenge = null;
   let response = verdict.response;
   let mismatches = [...verdict.mismatches];

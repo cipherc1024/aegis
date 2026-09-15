@@ -1,5 +1,7 @@
 // 链上 quorum E2E：proposer 收据 → challenger 互证 → AegisVaultQuorum.executeTrade
 // 场景：① 无验证 → revert "No challenger quorum" ② challenger 同意 → 执行成功
+// ⚠️ v1 时代脚本：下方地址为已废弃的 v1 合约；且脚本会改写 registry 的 agentGuardrailHash，
+//    切勿对着 v2 生产地址（0x4622D041… / 0xe6E24BB7…）跑——会破坏现网 challenger 认证。
 import { loadEnv, getWallet, deploy } from "./lib.mjs";
 import { JsonRpcProvider, Contract } from "ethers";
 

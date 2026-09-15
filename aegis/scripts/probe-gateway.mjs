@@ -1,13 +1,22 @@
-// USTC 校园网关模型实测探针（零依赖，仅用于选型，不属于交付链路）
+// OpenAI 兼容模型 token 指纹探针（零依赖，仅用于跨家族选型核实，不属于交付链路）
+// 2026-09-13 曾用于校园网关选型实测；该网关已于 2026-09-15 从项目配置删除，本脚本保留作方法与证据。
 //
 // 目的：确认哪些模型真能跑通、以及不同模型名背后是否是同一后端。
 // 后者决定 2-of-2 互证能否成立：若 proposer 与 challenger 的"不同模型"
 // 实际落到同一个上游，跨家族独立性就是假的（0 收益的伪 2-of-2）。
 //
-// 用法：node scripts/probe-gateway.mjs [--key sk-xxx] [--base URL]
+// 用法：node scripts/probe-gateway.mjs --base URL --key sk-xxx [--all | --models m1,m2]
 
-const BASE = (process.env.LLM_BASE_URL || "https://api.llm.ustc.edu.cn").replace(/\/+$/, "");
-const KEY = process.env.LLM_API_KEY || "";
+const argOf = (k) => {
+  const i = process.argv.indexOf("--" + k);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
+const BASE = (argOf("base") || process.env.LLM_BASE_URL || "").replace(/\/+$/, "");
+const KEY = argOf("key") || process.env.LLM_API_KEY || "";
+if (!BASE || !KEY) {
+  console.error("缺少端点或 key：--base URL --key sk-xxx（或环境变量 LLM_BASE_URL / LLM_API_KEY；本脚本不自动加载 .env）");
+  process.exit(1);
+}
 
 const CANDIDATES = [
   "deepseek-flash",
