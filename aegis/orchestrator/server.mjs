@@ -489,15 +489,30 @@ async function command(agentId, body) {
 }
 
 // ---- HTTP ----
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+// CORS：本进程持有 proposer 私钥且 /api/agent/command 是可写端点（可选真实上链），
+// 不能允许任意源跨站调用（浏览器里任何一个页面都能打到 localhost:8787）。
+// 默认只放行本地 dashboard；dashboard 生产路径走 Next 同源 rewrite（不经 CORS），
+// 此白名单主要服务本地 dev（:3000）。需要别的源用 ALLOWED_ORIGINS 显式加白。
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function corsFor(origin) {
+  const base = {
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    Vary: "Origin",
+  };
+  // 无 Origin = 非浏览器调用（curl / 服务端），不需要 ACAO；命中白名单才回显
+  if (origin && ALLOWED_ORIGINS.includes(origin)) return { ...base, "Access-Control-Allow-Origin": origin };
+  return base;
+}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const agentId = BigInt(url.searchParams.get("agentId") || "1");
+  const cors = corsFor(req.headers.origin);
   const send = (code, body) =>
     res.writeHead(code, { "Content-Type": "application/json", ...cors }).end(JSON.stringify(body));
 

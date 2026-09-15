@@ -61,6 +61,10 @@ const DICT: Record<string, { zh: string; en: string }> = {
 
   "market.title": { zh: "Agent 市场", en: "Agent Market" },
   "market.subtitle": { zh: "发现可验证、可投资的自主交易 Agent", en: "Discover verifiable autonomous trading agents" },
+  "market.sampleNotice": {
+    zh: "示例数据：以下 Agent 为产品愿景占位，非链上真实注册的 agent。真实可验证的 agent 只有一个（agentId=1），见「总览 / 收据流」。",
+    en: "Sample data: the agents below are product-vision placeholders, not on-chain registrations. Only one agent (agentId=1) is real and verifiable — see Overview / Receipts.",
+  },
   "market.filter.all": { zh: "全部", en: "All" },
   "market.filter.highYield": { zh: "高收益", en: "High yield" },
   "market.filter.lowRisk": { zh: "低风险", en: "Low risk" },

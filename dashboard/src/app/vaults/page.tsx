@@ -2,6 +2,7 @@
 
 import { useL } from "@/lib/i18n";
 import { Landmark } from "lucide-react";
+import { SampleBanner } from "@/components/SampleBanner";
 
 export default function VaultsPage() {
   const L = useL();
@@ -13,6 +14,7 @@ export default function VaultsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <h1 className="mb-5 text-lg font-semibold">{L("收益金库", "Vaults")}</h1>
+      <SampleBanner />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {vaults.map((v) => (
           <div key={v.name} className="card card-hover p-5">

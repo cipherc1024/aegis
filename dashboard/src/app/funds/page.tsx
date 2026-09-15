@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useL } from "@/lib/i18n";
 import { Lock, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { SampleBanner } from "@/components/SampleBanner";
 
 const RECENT = [
   { type: "deposit", amount: "+2.0 MON", time: "2026-09-11 14:02", hash: "0x9a1c…77b2" },
@@ -17,6 +18,8 @@ export default function FundsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
+      <h1 className="mb-5 text-lg font-semibold">{L("存取款", "Deposit / Withdraw")}</h1>
+      <SampleBanner />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* deposit */}
         <div className="card p-5">

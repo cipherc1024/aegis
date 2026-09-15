@@ -3,6 +3,12 @@
 // - PACE 确定性策略验证器 -> PDR
 // - 护栏管线（输入规范化 + 注入启发式 + 黑名单）-> guardrailHash
 // - 收据哈希：executionHash / semanticDigest（与链上 ReceiptRegistry 对齐）
+//
+// ⚠️ 定位（勿误用）：本模块是**演示路径**（run.mjs / agent.mjs / agent-demo.mjs）的确定性核心，
+// 且被 parity-check.mjs、regime-cost.mjs 复用 guardrail/PACE 以守住口径——这两者的复用是刻意的。
+// 但 **生产管线不走这里**：orchestrator/pipeline.mjs 自带 normalize + 护栏 + PACE + 目标层实现，
+// 且其 intentHash 语义为 executionHash（本模块 buildIntent 的 intentHash 是更宽的 typed-intent 摘要，
+// 两者不是同一个值）。因此本模块产出的 pdrHash 不能直接当作链上收据字段使用。
 import { keccak256, toUtf8Bytes, AbiCoder } from "ethers";
 
 const abi = AbiCoder.defaultAbiCoder();
@@ -96,8 +102,14 @@ export function paceVerify(intent, policy, state = { dailySpent: 0n }) {
   if (Number(intent.slippageBps) > Number(policy.maxSlippageBps)) return fail("slippage_too_high");
 
   const ph = policyHash(policy);
+  // ⚠️ pdrHash 口径必须与链上侧逐字节一致：
+  //   - orchestrator/server.mjs buildReceiptFields：pdr = keccak(intentHash, guardrailHash, true)，
+  //     其中 intentHash 在链上侧被**定义为等于 executionHash**；
+  //   - challenger/verify.mjs layer4_arithmetic：expectedPdr 同式，intentHash 取 decision 原文重算的 executionHash。
+  // 本模块的 typed intent 走的是另一套 buildIntent（intentHash = keccak(kind,target,amount,data,slippage)，
+  // 语义更宽 ≠ executionHash），故这里只能与本模块自身口径自洽，**不能**直接喂给链上/bindTranscript。
   const pdrHash = keccak256(
-    abi.encode(["bytes32", "bytes32", "bytes32", "bool"], [intent.intentHash, ph, intent.intentHash, true])
+    abi.encode(["bytes32", "bytes32", "bool"], [intent.intentHash, ph, true])
   );
   return { approved: true, reason: "ok", pdrHash, policyHash: ph, checks };
 }
@@ -109,11 +121,29 @@ export function computeExecutionHash(target, amount, data) {
 }
 
 // 链上 ReceiptRegistry.semanticDigest: keccak256(abi.encode(agentId, pdrHash, guardrailHash, executionHash, nonce, prev))
+// 注意：本函数是链上 **view** `semanticDigest` 的同名对照（DCAP quote 里 report_data 绑定的那个值），
+// 参数里的 prev 是链上语义参数（哈希链前驱）。提交收据时链上落盘的 digest 另见 computeReceiptDigest。
 export function computeSemanticDigest(agentId, pdrHash, guardrailHash, executionHash, nonce, prev) {
   return keccak256(
     abi.encode(
       ["uint256", "bytes32", "bytes32", "bytes32", "bytes32", "bytes32"],
       [agentId, pdrHash, guardrailHash, executionHash, nonce, prev]
+    )
+  );
+}
+
+// 收据摘要（链上 _submit 实际落盘的那个，ReceiptRegistry.sol:174-176）——比 semanticDigest
+// 多 blockHeight / blockHash 两个绑定字段：
+//   digest = keccak256(abi.encode(agentId, pdrHash, guardrailHash, executionHash,
+//                                 blockHeight, blockHash, prev, nonce))
+// challenger L4 用同一公式重算校验（verify.mjs:127-131）。
+// ⚠️ 这是生产管线缺失的最后一环：orchestrator 在 receiptDigest() 里内联了同一公式，
+// 本模块此前没有对应函数（已补齐，仅为对齐口径；orchestrator 未改）。
+export function computeReceiptDigest(agentId, pdrHash, guardrailHash, executionHash, blockHeight, blockHash, prev, nonce) {
+  return keccak256(
+    abi.encode(
+      ["uint256", "bytes32", "bytes32", "bytes32", "uint256", "bytes32", "bytes32", "bytes32"],
+      [agentId, pdrHash, guardrailHash, executionHash, blockHeight, blockHash, prev, nonce]
     )
   );
 }

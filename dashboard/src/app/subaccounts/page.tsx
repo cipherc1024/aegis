@@ -2,6 +2,7 @@
 
 import { useL } from "@/lib/i18n";
 import { Users, Plus } from "lucide-react";
+import { SampleBanner } from "@/components/SampleBanner";
 
 const SUBS = [
   { name: "Trading Bot", addr: "0x1a2b…9f0e", bal: "$3,200", perm: "trade" },
@@ -24,6 +25,7 @@ export default function SubaccountsPage() {
         </button>
       </div>
 
+      <SampleBanner />
       <div className="mb-4 grid grid-cols-2 gap-4">
         <div className="card p-4">
           <div className="text-xs text-tertiary">{L("总资产", "Total assets")}</div>

@@ -3,6 +3,7 @@
 import { useL } from "@/lib/i18n";
 import { AGENTS } from "@/lib/mock";
 import { ShieldCheck } from "lucide-react";
+import { SampleBanner } from "@/components/SampleBanner";
 
 export default function CopyPage() {
   const L = useL();
@@ -14,6 +15,7 @@ export default function CopyPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <h1 className="mb-5 text-lg font-semibold">{L("策略跟投", "Copy Strategies")}</h1>
+      <SampleBanner />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {AGENTS.slice(0, 4).map((a) => (

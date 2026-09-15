@@ -2,6 +2,7 @@
 
 import { useL } from "@/lib/i18n";
 import { LineChart, ShieldCheck } from "lucide-react";
+import { SampleBanner } from "@/components/SampleBanner";
 
 const BARS = [12, 18, -6, 22, 30, -9, 25, 41, 35, -4, 28, 52];
 
@@ -21,6 +22,7 @@ export default function BacktestPage() {
         <LineChart className="h-5 w-5 text-cyan" />
         <h1 className="text-lg font-semibold">{L("策略回测", "Backtest")}</h1>
       </div>
+      <SampleBanner />
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((s) => (

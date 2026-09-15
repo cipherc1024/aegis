@@ -34,6 +34,11 @@ export interface Agent {
 
 const h = (s: string) => "0x" + s.padEnd(64, "0").slice(0, 64);
 
+// 本文件全部为产品愿景占位数据：不是链上真实读数，也不是本项目已部署的 agent。
+// 展示这些数据的页面必须在标题处显著标注「示例」，避免评审误认为已上线运营数据。
+// 真实读数一律走 orchestrator（useAgentStatus / useReceipts / api.*）。
+export const MOCK_DATA_NOTICE = "本页为产品愿景占位数据，非链上真实读数";
+
 export const AGENTS: Agent[] = [
   { id: "42", name: "Aegis Alpha", avatar: "🛡️", erc8004Id: "Agent #42", tvl: "$4.2M", return30d: "+12.4%", maxDrawdown: "-3.2%", winRate: "68%", reputation: 94, verified: true, totalReceipts: 8421 },
   { id: "7", name: "Monad Momentum", avatar: "⚡", erc8004Id: "Agent #7", tvl: "$1.8M", return30d: "+9.1%", maxDrawdown: "-5.6%", winRate: "61%", reputation: 88, verified: true, totalReceipts: 5210 },

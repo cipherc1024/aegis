@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useT } from "@/lib/i18n";
 import { AGENTS } from "@/lib/mock";
 import { BadgeCheck } from "lucide-react";
+import { SampleBanner } from "@/components/SampleBanner";
 
 const FILTERS = [
   { key: "all", t: "market.filter.all" },
@@ -28,6 +29,9 @@ export default function MarketPage() {
         <h1 className="text-lg font-semibold">{t("market.title")}</h1>
         <p className="text-xs text-tertiary">{t("market.subtitle")}</p>
       </div>
+      <SampleBanner
+        note={t("market.sampleNotice")}
+      />
 
       <div className="mb-5 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
