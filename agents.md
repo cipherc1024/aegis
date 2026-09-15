@@ -63,6 +63,7 @@ node scripts/parity-check.mjs # 期望 "10 agree / 0 diverge"
 - [x] **Phase 4 完成**（2026-09-14）：**真实协议交互路径上线**——重置后 testnet（2025-12-16 genesis reset）无法核实任何第三方 DEX router（Uniswap v2/v3/v4 canonical 地址链上实测 codeLen=0，`scripts/probe-dex.mjs`；Kuru 无法核实），经用户确认以**官方 canonical WMON wrap** 为真实路径：官方文档核实 WMON `0xFb8bf4c1…8541`（链上 codeLen=3249、name/symbol/decimals 读回正确）→ `.env` WHITELIST 与 challenger 策略加入 WMON → `policy-attest --execute` 上链新认证 → `whitelist-wmon.mjs` 金库白名单上链 → pipeline assetMap 加 WMON（intent→`deposit()` calldata `0xd0e30db0`，`pipeline.mjs` WMON_DEPOSIT）→ **全链 E2E 实测：buy WMON 0.01 → executeTrade{value} → TradeExecuted @62366819，execHash 与 transcript 逐字节一致，金库 WMON 0→0.01**。修复 /api/verify 口径：未显式传 target/amount 时走与 /api/agent/command 完全相同的 pipeline 解析（data 也取 pipeline 值），新增 `resolvedBy` 字段。challenger 加固：全局 unhandledRejection 接管（RPC 抖动不再杀进程）
 - [x] **Phase 6 完成**（2026-09-14）：**统一入口 Dashboard**——Next rewrites 把 `/orch/*` 同源代理到 orchestrator（不开 CORS，内网地址不进浏览器）；新页 `/try`（现场跑一笔：pipeline 预览 → 双实现裁决 → dry-run 摘要，preset 覆盖合规/注入/未知标的/超限）与 `/architecture`（信任边界图 + TEE 虚线 + 10 步路径 + 一键 11 负例实测）；landing 四卡全改真实读数（编造数字清除或标「示例」）；`/receipts` 改走 orchestrator 索引（真实哈希+tx 可点 explorer，未覆盖字段诚实显示"—"）；nav 重排评审动线（核心→用户→运营者）。修复：try/architecture 页管线拒绝时 challenger=null 的 TypeError、challenger layers 对象误当数组、11 负例面板未知标的误用白名单 target
 - [x] **Phase 5 完成**（2026-09-14）：README 重写（信任边界口径、P1-P6 里程碑、Phase 4 全链 tx 表、部署地址表更新到 v2、诚实边界清单、testnet 重置坑）；agents.md 同步
+- [x] **Tenderly 公开验证**（2026-09-15）：6 个自部署核心合约（DcapGate / ReceiptRegistry / AegisVaultQuorum / ValidationRegistry / IdentityRegistry / ReputationRegistry）**源码级 public 验证**（Tenderly 项目 monad-testnet），合约页与 E2E tx 页**匿名免登录可开**（评委直接核验）；配套 `scripts/tenderly-prep.mjs`（任一合约编译预检 + 链上 bytecode diff）与 `scripts/dcap-standard-input.mjs`（DcapGate shanghai standard JSON）；证据链接见 `aegis/README.md`「Tenderly 公开证据」节
 
 - [x] 参赛材料：`aegis/README.md`、`demo-90s-操作脚本.md`、`第四版策略.md`
 
@@ -105,6 +106,7 @@ node scripts/parity-check.mjs # 期望 "10 agree / 0 diverge"
 
 > 旧 v1 地址（ReceiptRegistry `0x91482e67…`、Vault `0x60F9F1FB…`）已废弃，勿引用。
 > testnet 于 2025-12-16 从创世重置——重置前的第三方合约地址（博客级 DEX 教程等）全部作废。
+> 其中全部 6 个自部署核心合约（AegisVaultQuorum / ReceiptRegistry / DcapGate / ValidationRegistry / IdentityRegistry / ReputationRegistry）已在 Tenderly 源码级公开验证（2026-09-15，匿名可查；链接见 `aegis/README.md`「Tenderly 公开证据」）。
 
 完整记录（DCAP 全栈地址、测试 tx 哈希与 gas）见 `aegis/dcap-verifier/STATUS.md`。
 
@@ -180,6 +182,8 @@ node scripts/parity-check.mjs # 期望 "10 agree / 0 diverge"
 - `deploy-quorum.mjs` — 部署 AegisVaultQuorum
 - `quorum-e2e.mjs` — 链上 quorum E2E（无验证拒绝 + challenger 同意执行）
 - `llm-divergence.mjs` — 语义分歧度量（零 gas 离线）；`probe-gateway.mjs` — 网关 token 指纹探测（跨家族核实）
+- `tenderly-prep.mjs` — Tenderly 验证预检：加载 build-info → 本地 solc 重编译 → 与链上 runtime bytecode diff（PERFECT/LIKELY/MISMATCH；`--dump` 导出 standard JSON 到 `.tenderly-verify/`，该目录已 gitignore 可重建）
+- `dcap-standard-input.mjs` — DcapGate 专用单文件 standard JSON（shanghai；source key 必须为 `dcap-verifier/contracts/DcapGate.sol`，否则 metadata 哈希不匹配）；产物供 Tenderly JSON Upload
 - `d5-e2e-submit.mjs`、`rpc-probe.mjs`、`probe-monad.mjs` 等
 - ⚠️ `vault-exec-multicall.mjs` 是失败路径留档（Monad Multicall3 内层 msg.sender 失效）
 

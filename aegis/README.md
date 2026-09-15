@@ -85,6 +85,7 @@ dashboard/                     Next.js 14 统一入口（评审动线：总览 �
 | P3 | **双 LLM 隔离管线 + 跨家族** | 隔离 LLM（无工具）→ 特权 LLM（只吃可信指令+摘要）→ δ 裁决；proposer=deepseek-flash / challenger=glm-5.3-flash（**经网关指纹实测确认不同后端**，见 `scripts/probe-gateway.mjs`）；parity-check 守住两侧口径 |
 | P4 | **真实协议交互路径** | 官方 canonical WMON wrap：LLM intent → `deposit()` calldata → executeTrade{value} → 金库 WMON 0→0.01（四笔 tx 全链实测，见下） |
 | P6 | **统一入口 Dashboard** | 评审动线四页 + `/orch/*` 同源代理 + 一键负例（11 向量实测全过）+ 11 个负例浏览器内断言 |
+| — | **Tenderly 公开验证** | 6 个合约源码级 public 验证（vault/receipt/gate/三注册表），合约页与 E2E tx **匿名可开**（见「Tenderly 公开证据」） |
 
 ### Phase 4 全链实测（buy WMON 0.01，2026-09-14）
 
@@ -97,6 +98,46 @@ dashboard/                     Next.js 14 统一入口（评审动线：总览 �
 | 链上结果 | TradeExecuted target=`0xFb8bf4c1…8541`（官方 WMON）value=0.01 MON，**execHash 与决策 transcript 逐字节一致**；金库 WMON 余额 0 → 0.01 |
 
 策略/白名单治理交易：`setGuardrailHash` `0x2464ea4c…67dce`（gas 42.9k）、`setTarget(WMON)` `0x451e6c13…bad5`（gas 60.6k）。
+
+### Tenderly 公开证据（匿名可查，评委直接核验）
+
+6 个自部署核心合约已在 Tenderly Monad Testnet **源码级公开验证**（`"public": true`，含精确编译设置）：
+
+| 合约 | Tenderly 合约页（无需登录） |
+|---|---|
+| AegisVaultQuorum `0xe6E24BB7…533D7` | https://dashboard.tenderly.co/contract/monad-testnet/0xe6E24BB72a4a327b7A7E7aA025A04eBc5a6533D7 |
+| ReceiptRegistry `0x4622D041…9c90B` | https://dashboard.tenderly.co/contract/monad-testnet/0x4622D041696942dC873a8A5E54f1e1ca9669c90B |
+| DcapGate `0xAe58A4F6…fc66F` | https://dashboard.tenderly.co/contract/monad-testnet/0xAe58A4F6DD3E2810812193D4766f11d5F3Dfc66F |
+| ValidationRegistry `0x8b96a09e…be0cEa` | https://dashboard.tenderly.co/contract/monad-testnet/0x8b96a09eb50409FE4c402cB9Bb9D1Ef79bbe0cEa |
+| IdentityRegistry `0xC99D2957…81A74` | https://dashboard.tenderly.co/contract/monad-testnet/0xC99D2957fdA1455E68dF2181A4bB97fd73081A74 |
+| ReputationRegistry `0xb5B853Bc…5c9f` | https://dashboard.tenderly.co/contract/monad-testnet/0xb5B853BcE92940b8E5BFba131301509eaCFb5c9f |
+
+该 E2E 的三笔关键 tx 在 Tenderly 里可直接看到**源码级调用栈**（`_preExecutionHook` 的 response≥100 闸门 → WMON `deposit()`）：
+
+| 步骤 | Tenderly 链接 |
+|---|---|
+| 收据提交（链上 DCAP 验真） | https://dashboard.tenderly.co/tx/0x911bb84e48993e0285ba3119bf6276a91714c2bd6dabf082c122dea08a161408 |
+| 挑战者裁决（validationResponse） | https://dashboard.tenderly.co/tx/0xaed419099daed33b950d1dbc3f5b9b0c8056d1dc8bc9c33bb7c04efa8a110cc9 |
+| 执行（TradeExecuted） | https://dashboard.tenderly.co/tx/0x1d30e015733474ecb249743033f0a50fec81988efbbdbe6b63c309d34fd3f99b |
+
+匿名可查性实测（无任何凭据、无重定向到登录页）：
+
+```bash
+curl -s https://api.tenderly.co/api/v1/public-contracts/10143/0xe6e24bb72a4a327b7a7e7aa025a04ebc5a6533d7
+# => "public":true, "contract_name":"AegisVaultQuorum",
+#    compiler_settings{"optimizer":{"enabled":true,"runs":200},"evmVersion":"paris","viaIR":true}
+# 上表 6 个地址同构可查（把末尾地址换成任意一个即可复测）
+```
+
+重新部署/新增合约后可重生成上传件并复核（流程 2026-09-15 实操）：
+
+1. 入口：合约页 `https://dashboard.tenderly.co/contract/monad-testnet/<地址>` → **Source code** → **Verify Contract**（无需 tx 调试器）
+2. Visibility 选 **Public** → Source Code 选 **JSON Upload** → 粘贴下面的 standard JSON → Review 勾选目标合约 → Compiler Version 选 `solc v0.8.24` → Finish
+
+```bash
+node scripts/tenderly-prep.mjs artifacts/build-info/<buildInfo>.json <ContractName> <0xAddr> --dump out.json
+node scripts/dcap-standard-input.mjs   # DcapGate 单文件 standard JSON + 与链上 runtime 逐字节 diff
+```
 
 ## 真实协议路径（Phase 4）为什么是 WMON
 
@@ -200,4 +241,5 @@ cd ../dashboard && npm install && npm run build && npm start
 | WMON（官方 canonical，P4 目标） | `0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541` |
 
 其余（DCAP 全栈 14+ 合约、历史 tx 哈希与 gas）见 `dcap-verifier/STATUS.md`。
+其中全部 6 个自部署核心合约（AegisVaultQuorum / ReceiptRegistry / DcapGate / ValidationRegistry / IdentityRegistry / ReputationRegistry）已在 Tenderly 源码级公开验证（证据链接见上方「Tenderly 公开证据」）。
 旧 v1 地址（ReceiptRegistry `0x91482e67…`、Vault `0x60F9F1FB…`）已废弃，勿引用。

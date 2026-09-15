@@ -23,7 +23,9 @@ aegis/tools/
 **/decisions.jsonl
 **/challenger-state.json
 **/challenger-log.jsonl
+**/.tenderly-verify/
 
 # ---- 系统杂项 ----
 .DS_Store
 Thumbs.db
+.playwright-mcp/
