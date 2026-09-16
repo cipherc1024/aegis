@@ -12,7 +12,7 @@
 ```bash
 # 工作目录：C:\Users\12190\Desktop\本科二年级\Monad量化\aegis
 npx hardhat compile          # 期望 "evm target: paris"
-npx hardhat test             # 期望 "18 passing"
+npx hardhat test             # 期望 "26 passing"
 node scripts/d6-negative.mjs # 期望 8 项攻击向量全部被拒 + 1 正例通过（真实上链 fresh 合约，~0.15 MON gas，非零成本）
 node scripts/parity-check.mjs # 期望 "17 agree / 0 diverge"
 node challenger/selftest.mjs  # 期望 17/17（L1–L5 全覆盖）
@@ -88,8 +88,13 @@ node scripts/soa-demo.mjs --onchain  # 真实上链版（需 orchestrator+challe
 - [x] **审计修正（只读结构审计后的三项修复）**（2026-09-16，commit `ebfc6cf`）：三处均属"未声明的缺口"而非已声明边界——
   ① **orchestrator CORS 由 `Access-Control-Allow-Origin: *` 收紧为来源白名单**（`ALLOWED_ORIGINS`，默认 `http://localhost:3000,http://127.0.0.1:3000`）。本进程持有 proposer 私钥且 `/api/agent/command` 可写（可真实上链），通配符使浏览器里任意页面都能跨站打到 `localhost:8787`；无 `Origin` 的非浏览器调用（curl/服务端）不受影响但不再回显 ACAO。**dashboard 生产路径走 Next 同源 rewrite，不经 CORS，故演示链路不受影响**——这也解释了为何此前 Phase 6 记录写"不开 CORS"却未暴露问题：同源代理让通配符从未被实际触发。
   ② **Dashboard 愿景页（vaults / funds / subaccounts / copy / backtest / market）全部基于 `mock.ts` 编造数字，此前零标注** → 新增 `components/SampleBanner.tsx` 页级横幅（沿用 `StatCard`/`SafetyPanel` 既有 `sample` 芯片口径，整页占位时更显眼），market 页附定制文案点明"真实可验证的 agent 只有 agentId=1"；顺带补上 funds 页缺失的 h1。
+  ②b **同一轮只覆盖了 6 页，另有 5 页漏标（2026-09-16 复查补做）**：`console` / `audit` / `sdk` / `notifications` / `settings`——其中 `console` 页的伪造 TEE 度量值（MRTD/RTMR0/FMSPC/TCB）与"心跳 3 秒前"最伤可信度（该页在 nav 的「核心（评审从这里看）」组内）；`audit` 页伪造"12,480 条记录"并断言"所有导出均带哈希链校验值"（功能不存在）；`sdk` 页宣传 npm 上不存在的 `@aegis/sdk`；`settings` 页把 `8`/`60`/`a7f2c8d9…` 显示成实际配置值。处理：五页均加 `SampleBanner`（各带定制文案），并删掉具体编造数值（改为 `—` / "无数据源" / 标"规划中"），`audit` 导出按钮置 `disabled`。教训：**"改了愿景页"必须按 nav 清单逐页核对**，不能按已改页数报完成。
   ③ **`tee-runtime/runtime.mjs` 的 `pdrHash` 由 4 字段改回与链上一致的 3 字段**（`[intentHash, policyHash, true]`）。原 4 字段形态与 orchestrator/challenger 都算不出同一值；该模块仅经 `agent.mjs → agent-demo.mjs` 演示路径可达，**未污染生产管线**。同时在文件头标注本模块为演示路径——其 `buildIntent` 的 `intentHash = keccak(kind,target,amount,data,slippage)` **语义比链上宽，不等于 `executionHash`**，故其 `pdrHash` 不可直接当链上收据字段；并补齐 `computeReceiptDigest`（链上 `_submit` 实际落盘的 digest 公式，此前只在 orchestrator 内联）。
   **回归验证**：hardhat 18/18 · challenger selftest 17/17 · parity 17 agree / 0 diverge · agent-demo 三场景不变 · dashboard tsc + build + 浏览器实测横幅渲染
+- [x] **审计修正第二轮（2026-09-16，未提交）**：三项均为"未声明的缺口"，本轮全部修复——
+  ④ **`AegisVaultQuorum` 加 challenger 验证者白名单**（`isTrustedValidator` 映射 + `trustedValidatorCount` + `setTrustedValidator` + `ValidatorTrustUpdated` 事件；钩子改为 `require(isTrustedValidator[validator], "Untrusted challenger")`）。**漏洞**：`ValidationRegistry` 本身是 permissionless 的——任何人可调 `validationRequest` 把 `validatorAddress` 设成自己，再用自己的地址回 `validationResponse(100)`；旧钩子只读 `response >= MIN_RESPONSE`，故**攻击者可自证自答伪造 quorum**（不需要 challenger 私钥）。修复后钩子先查验证者是否在 owner 白名单内，**白名单默认为空 = fail-closed**（未授权时 executeTrade 一律 revert，宁可拒绝不可放行）。`scripts/deploy-quorum.mjs` 部署时自动把 `CHALLENGER_ADDR` 授权上链；单测新增（自证伪造被忽略 / 撤销授权立即生效 / 白名单 owner-only 且拒零地址 + `ValidationRegistry` 五个边界用例）→ hardhat **18 → 26 passing**。⚠️ **旧 v2 地址（`0xe6E24BB7…`）仍是旧钩子，本修复要生效需 v3 重部署**。
+  ⑤ **`tee/intee/agent.mjs` 的第三条护栏口径（in-TEE 自治闭环路径）**——原文件手写了一套独立的护栏/PACE，其中 `guardrailHash` 硬编码为 `keccak256(toUtf8Bytes("guardrail-v1"))`，**永远不等于**链上 `agentGuardrailHash = attestedGuardrailHash(policy)`，且其 `norm` 缺 leet 折叠（与 challenger L2 漂移）；它既不在 `parity-check` 覆盖内，也不被仓库任何文件 import（`tee-runtime/agent-demo.mjs` 用的是另一个 `agent.mjs`）。处理：**删除自实现，改为 import 仓库权威模块**（`../tee-runtime/runtime.mjs` 的 `runGuardrail/paceVerify/computeExecutionHash` + `../challenger/verify.mjs` 的 `attestedGuardrailHash`），从根上消掉第三口径；`PER_TX_LIMIT`/`DAILY_LIMIT` 缺省时 `CONFIG_ERROR` 退出（不设默认，避免与链上策略静默分叉）；`policy` 字段集补齐 `allowedAssets`/`maxSlippageBps`（缺则 policyHash 与链上不等）。**部署路径同步改造**：单文件 base64 已不足以还原 import 依赖 → `docker-compose.yml` 引入 `MODULES_B64`（tar.gz），新增 `scripts/pack-intee.mjs` 生成 `APP_B64`/`MODULES_B64`（`--env` 写 `.env.intee`，**含密钥，不得提交**）。
+  **回归验证（2026-09-16 实跑）**：hardhat **26/26** · challenger selftest **17/17** · parity **17 agree / 0 diverge** · dashboard `tsc --noEmit` 通过。⑤ 的 API 面经临时冒烟脚本验证（`attestedGuardrailHash(policy) === runGuardrail(...).guardrailHash` 为 true，四类 PACE 分支与两类护栏分支结论正确；`agent.mjs` 本体因 `@phala/dstack-sdk` 只装在 CVM 内、本机未安装，**无法在本机端到端运行**，只能进 CVM 验）。
 - [x] 参赛材料：`aegis/README.md`、`demo-90s-操作脚本.md`、`第四版策略.md`
 
 ---
@@ -100,7 +105,9 @@ node scripts/soa-demo.mjs --onchain  # 真实上链版（需 orchestrator+challe
 2. **多 challenger / k-of-n**（未来工作，答辩可讲）：当前单 challenger = 2-of-2 quorum；扩展为声誉加权 k-of-n 是自然延伸。
 3. **challenger 经济模型**（未来工作）：谁付钱、作恶罚没。
 4. **SOA-lite 链上强制**（未来工作）：把"执行落在签署目标内"作为 vault 的 revert 条件（当前 objectiveHash 经 bindTranscript 只做存证，强制在两侧重推导完成）；链上防重放（nonce 消费）一并做。
-5. 提交前通读 README/STATUS，确认所有引用可核实（README 2026-09-15 已对齐）。
+5. **⚠️ v3 重部署（含已修但未上链的 quorum 验证者白名单）**：`AegisVaultQuorum` 新增的 `isTrustedValidator` 白名单只在源码里，线上仍是 `0xe6E24BB7…`（旧钩子，无法阻止自证伪造 quorum）。重部署后需按序执行：`deploy-quorum.mjs`（自动授权 `CHALLENGER_ADDR`）→ 更新 `.env` 的 `QUORUM_VAULT` → 金库白名单 `whitelist-wmon.mjs` → Tenderly 重新验证 → 全链 E2E 复跑。**另**：v3 可顺带把钩子从 `lastReceiptHash` 改为 `lastTradeReceipt`（消掉心跳与交易窗口互斥的合约层残留约束，见 §11）。
+6. 提交前通读 README/STATUS，确认所有引用可核实（README 2026-09-15 已对齐）。
+7. **`scripts/parity-check.mjs` 的 `ASSETS`（第 34 行）是死变量 + 用例只覆盖 USDC**（2026-09-16 核实）：`const ASSETS = { USDC: WHITELIST[0] }` 定义后**从未被引用**（`grep ASSETS` 仅此一处），用例实际直接用 `WL0` 字面量与 `asset: "USDC"`；同时 `pipeline.mjs` 的 `assetMap` 已返回 `{USDC, WMON}`。故 parity 守卫**没有覆盖 WMON 真实路径**（Phase 4 起的主用路径）。影响有限（两侧都不以 assets 判定拒绝与否，守卫的核心不变式仍成立），但属真实缺口：建议删掉死变量并把 `benign` 换成 WMON target。**未改，待批准。**
 
 ---
 
@@ -219,12 +226,13 @@ node scripts/soa-demo.mjs --onchain  # 真实上链版（需 orchestrator+challe
 - `llm-divergence.mjs` — 语义分歧度量（零 gas 离线）；`probe-gateway.mjs` — OpenAI 兼容模型 token 指纹探测（跨家族独立性核实；含 2026-09-13 网关实测记录）
 - `tenderly-prep.mjs` — Tenderly 验证预检：加载 build-info → 本地 solc 重编译 → 与链上 runtime bytecode diff（PERFECT/LIKELY/MISMATCH；`--dump` 导出 standard JSON 到 `.tenderly-verify/`，该目录已 gitignore 可重建）
 - `dcap-standard-input.mjs` — DcapGate 专用单文件 standard JSON（shanghai；source key 必须为 `dcap-verifier/contracts/DcapGate.sol`，否则 metadata 哈希不匹配）；产物供 Tenderly JSON Upload
+- `pack-intee.mjs` — 打包 `tee/intee/agent.mjs` + 其仓库依赖（`tee-runtime/`、`challenger/`）为 `APP_B64`/`MODULES_B64` 两个 base64 块，供 `tee/intee/docker-compose.yml` 在 Phala CVM 内还原。`--env` 写 `.env.intee`（**含 PK，不得提交**）。注：Windows/Git Bash 下 GNU tar 需 `--force-local` 且必须排在 `czf` 之后
 - `d5-e2e-submit.mjs`、`rpc-probe.mjs`、`probe-monad.mjs` 等
 - ⚠️ `vault-exec-multicall.mjs` 是失败路径留档（Monad Multicall3 内层 msg.sender 失效）
 
 ### 其他
 - `aegis/dcap-verifier/STATUS.md` — **完整工程记录（地址+坑+gas+tx 哈希），接手必读**
-- `aegis/test/aegis.test.js` — 18/18 测试
+- `aegis/test/aegis.test.js` — 26/26 测试（含 quorum 验证者白名单 + ValidationRegistry 边界）
 - `aegis/hardhat.config.js` — solc 0.8.24 + viaIR + optimizer 200 + `evmVersion: paris`
 - `aegis/README.md` — 参赛级 README
 - `第四版策略.md` — 主策略文档（工作区根目录）
@@ -267,9 +275,9 @@ new FallbackProvider([providerA, providerB], 10143, { quorum: 1, stallTimeout: 2
 ```bash
 # 工作目录：C:\Users\12190\Desktop\本科二年级\Monad量化\aegis
 
-# 合约编译 + 单测（应 18/18 通过）
+# 合约编译 + 单测（应 26/26 通过）
 npx hardhat compile                 # 期望 "evm target: paris"
-npx hardhat test                    # 期望 "18 passing"
+npx hardhat test                    # 期望 "26 passing"
 
 # D6 负例（8 攻击向量 + 1 正例对照应全部符合预期；真实上链 fresh 合约，~0.15 MON gas）
 node scripts/d6-negative.mjs
@@ -340,3 +348,5 @@ cd ../dashboard && npm install && npm run build && npm start
 - **TEE 阶段二三（OPA/Membrane）未实现**，当前为可插拔结构——README 已标为已知边界，勿在答辩中声称已实现。
 - **心跳与交易窗口互斥**（2026-09-15 客户端修复）：orchestrator 已加在途守卫——trade 收据上链后 60s 内心跳请求返回 `heartbeat_deferred`（时间自愈）；challenger 对心跳收据直接跳过（无 transcript 绑定，不参与重推导）。合约层残留约束：quorum 钩子读 `lastReceiptHash`（含心跳），若绕过 orchestrator 直接发心跳 tx 顶掉在途交易收据，executeTrade 会 revert "No challenger quorum"（fail-closed，资金安全）；合约层修复（钩子改读 lastTradeReceipt）需 v3 重部署，暂不做。
 - v2 金库 `executeTrade` 带 `{value}`（原生 MON 传递已实现；Phase 4 实测金库 WMON 余额 0→0.01）。
+- **⚠️ 线上 quorum 合约缺验证者白名单（2026-09-16 审计发现，源码已修、链上未修）**：`ValidationRegistry` 是 permissionless 的——任何人可 `validationRequest`(validatorAddress=自己) 再自己回 `validationResponse(100)`。线上 v2 `AegisVaultQuorum`（`0xe6E24BB7…`）的钩子只读 `response >= 100`，**故攻击者无需 challenger 私钥即可伪造 quorum 放行 executeTrade**（前提是已持有 vault 的 executor 权限或 owner 误授）。讽刺的是这与全项目"不让单方自证"的主张直接冲突，属**必须修复项**。源码已加 `isTrustedValidator` 白名单（默认空 = fail-closed）+ 3 个单测（自证伪造被忽略/撤销即时生效/owner-only），但**要生效必须 v3 重部署**（见 §3 待办 5）。答辩若被追问合约层，**不要声称线上已强制白名单**——当前强制只在源码 + 测试。
+- **`tee/intee/agent.mjs` 修复后未跑 CVM E2E**（2026-09-16）：改为 import 权威模块后（`@phala/dstack-sdk` 本机未安装，无法本地端到端），新 `MODULES_B64` 部署路径**只在打包侧验证过**（`scripts/pack-intee.mjs` 能产出两个 base64 块），**CVM 内实际还原 + 执行未经复跑**。若答辩要用 in-TEE 闭环证据，须先真跑一次。

@@ -1,3 +1,9 @@
+# ⚠️ 口径前提（2026-09-16）：agent.mjs 现在**依赖仓库模块**
+#    - ../../tee-runtime/runtime.mjs        (runGuardrail / paceVerify / computeExecutionHash)
+#    - ../../challenger/verify.mjs          (attestedGuardrailHash)
+#    因此【不能】再只把 agent.mjs 单文件 base64 塞进 CVM —— 那样 import 会解析失败。
+#    本 compose 的 MODULES_B64 由 scripts/pack-intee.mjs 生成（把上述模块打成 tar.gz），
+#    在 ATTEST 步骤落到 /app/ 下的对应相对路径；两个 _B64 变量都必须设置。
 services:
   agent:
     image: node:22-slim
@@ -5,6 +11,7 @@ services:
       - /var/run/dstack.sock:/var/run/dstack.sock
     environment:
       - APP_B64=${APP_B64}
+      - MODULES_B64=${MODULES_B64}
       - RPC=${RPC}
       - PK=${PK}
       - REGISTRY=${REGISTRY}
@@ -13,8 +20,28 @@ services:
       - AMOUNT=${AMOUNT}
       - DATA=${DATA}
       - PER_TX_LIMIT=${PER_TX_LIMIT}
+      # dailyLimit 无默认值：agent.mjs 会 CONFIG_ERROR 退出（避免与链上策略静默分叉）
+      - DAILY_LIMIT=${DAILY_LIMIT}
+      - MAX_SLIPPAGE_BPS=${MAX_SLIPPAGE_BPS}
       - WHITELIST=${WHITELIST}
+      - ALLOWED_ASSETS=${ALLOWED_ASSETS}
       - TRUSTED_CMD=${TRUSTED_CMD}
       - MARKET_DATA=${MARKET_DATA}
       - BLOCKLIST=${BLOCKLIST}
-    command: ["sh", "-c", "mkdir -p /app; cd /app; npm init -y >/dev/null 2>&1; npm i --no-audit --no-fund ethers @phala/dstack-sdk 2>&1; echo $$APP_B64 | base64 -d > /app/agent.mjs; wc -c /app/agent.mjs; node /app/agent.mjs 2>&1; sleep 600"]
+      - DAILY_SPENT=${DAILY_SPENT}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        mkdir -p /app/tee/intee /app/tee-runtime /app/challenger
+        cd /app
+        npm init -y >/dev/null 2>&1
+        npm i --no-audit --no-fund ethers @phala/dstack-sdk
+        echo "$$MODULES_B64" | base64 -d > /tmp/modules.tgz
+        tar xzf /tmp/modules.tgz -C /app
+        echo "$$APP_B64" | base64 -d > /app/tee/intee/agent.mjs
+        echo "modules:"; find /app/tee-runtime /app/challenger -type f | sort
+        wc -c /app/tee/intee/agent.mjs
+        node /app/tee/intee/agent.mjs 2>&1 || echo "EXIT=$?"
+        sleep 600

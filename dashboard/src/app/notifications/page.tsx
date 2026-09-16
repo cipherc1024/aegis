@@ -1,6 +1,7 @@
 "use client";
 
 import { useL } from "@/lib/i18n";
+import { SampleBanner } from "@/components/SampleBanner";
 import { Snowflake, AlertTriangle, Ban, CheckCircle2 } from "lucide-react";
 
 const NOTIFS = [
@@ -22,6 +23,12 @@ export default function NotificationsPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="mb-5 text-lg font-semibold">{L("通知中心", "Notifications")}</h1>
+      <SampleBanner
+        note={L(
+          "本页为界面占位：下方通知是写死的示例条目，非真实事件流（其中「提现完成 / 0.5 MON 已到账」等资金事件均未发生）。",
+          "Placeholder UI: the notifications below are hard-coded samples, not a real event stream (the funding events such as \"Withdrawal complete / 0.5 MON settled\" never happened)."
+        )}
+      />
       <div className="space-y-2">
         {NOTIFS.map((n, i) => {
           const m = META[n.type as keyof typeof META];

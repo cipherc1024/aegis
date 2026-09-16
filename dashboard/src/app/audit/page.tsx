@@ -1,13 +1,14 @@
 "use client";
 
 import { useL } from "@/lib/i18n";
+import { SampleBanner } from "@/components/SampleBanner";
 import { ClipboardList, FileText, FileJson, BadgeCheck } from "lucide-react";
 
 export default function AuditPage() {
   const L = useL();
   const stats = [
-    { k: L("可导出记录", "Exportable records"), v: "12,480" },
-    { k: L("时间范围", "Time range"), v: "2026-08-01 ~ 至今" },
+    { k: L("可导出记录", "Exportable records"), v: "—" },
+    { k: L("时间范围", "Time range"), v: "—" },
     { k: L("格式", "Formats"), v: "CSV / JSON" },
   ];
   const options = [
@@ -22,11 +23,18 @@ export default function AuditPage() {
         <h1 className="text-lg font-semibold">{L("审计日志", "Audit Log")}</h1>
       </div>
 
+      <SampleBanner
+        note={L(
+          "本页为界面占位：导出按钮尚未接线，记录数与时间范围无真实数据源。真实收据数据见「收据流」（含 explorer 链接）与 orchestrator 的 /api/receipts。",
+          "Placeholder UI: the export buttons are not wired up, and neither the record count nor the time range has a real data source. For real receipts see Receipts (with explorer links) and the orchestrator's /api/receipts."
+        )}
+      />
+
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {stats.map((s) => (
           <div key={s.k} className="card p-4">
             <div className="text-xs text-tertiary">{s.k}</div>
-            <div className="mono mt-2 text-sm">{s.v}</div>
+            <div className="mono mt-2 text-sm text-muted">{s.v}</div>
           </div>
         ))}
       </div>
@@ -35,7 +43,12 @@ export default function AuditPage() {
         {options.map((o) => {
           const Icon = o.icon;
           return (
-            <button key={o.en} className="card card-hover flex w-full items-center gap-3 p-4 text-left">
+            <button
+              key={o.en}
+              disabled
+              title={L("尚未实现", "Not implemented yet")}
+              className="card flex w-full cursor-not-allowed items-center gap-3 p-4 text-left opacity-60"
+            >
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-input">
                 <Icon className="h-4 w-4 text-cyan" />
               </div>
@@ -49,7 +62,10 @@ export default function AuditPage() {
       </div>
 
       <p className="mt-4 text-center text-[11px] text-muted">
-        {L("所有导出均带哈希链校验值，可被第三方独立复核。", "All exports include hash-chain checkpoints for independent verification.")}
+        {L(
+          "设计意图：导出记录将携带收据摘要与哈希链前驱，可被第三方独立复核；当前尚未实现。",
+          "Design intent: exports would carry the receipt digest and hash-chain predecessor for independent verification; not implemented yet."
+        )}
       </p>
     </div>
   );

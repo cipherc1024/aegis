@@ -81,11 +81,14 @@ ROOT cert / SIGNING cert / PLATFORM cert / root CA CRL / PCK CRL / TCB info / QE
   - TEE 生成 TDX quote（5010 bytes）
   - `SUBMIT_TX=0x8563c26e…` **STATUS=1，GAS=3,474,328**，`NEW_LAST_RECEIPT_HASH=0xb28e3ec3…`
   - `DECISION=approved_onchain`
-- **Agent 在真实 TEE 内自主决策 + 自证 + 上链，全程无人干预**
+- **Agent 在真实 TEE 内自主决策 + 自证 + 上链，全程无人干预**（⚠️ 见下方更正）
 - `tee-runtime/`：双 LLM 隔离（可插拔，OpenAI 兼容适配器 + mock 回退）、PACE 验证器、护栏管线；离线 `semanticDigest` 与链上一致
 
+> ⚠️ **更正（2026-09-16 审计发现）**：本节的 `GUARDRAIL_HASH=0x9bd27ccb…` 来自 `tee/intee/agent.mjs` 当时**手写的独立护栏实现**，其 guardrailHash 是硬编码的 `keccak256(toUtf8Bytes("guardrail-v1"))`——**该值不可能等于链上认证的 `agentGuardrailHash = keccak256(abi.encode("guardrail-v1", policyHash(policy)))`**。也就是说：那笔"STATUS=1"的收据之所以能上链，是因为 `_submit` 当时**没有**校验 guardrailHash 与 registry 认证值的一致性；而该决策摘要**不是**挑战者会独立重推导出的同一个值（两者 `norm` 也不同：手写版缺 leet 折叠）。因此「摘要与链上一致」这条早于 challenger/parity 出现的结论，**对 guardrailHash 口径不成立**。
+> 已修复（2026-09-16）：`tee/intee/agent.mjs` 删除自实现，改为 import `tee-runtime/runtime.mjs` 与 `challenger/verify.mjs` 的权威实现，第三口径从根上消除；部署路径同步改为 `MODULES_B64`（见 `scripts/pack-intee.mjs`）。**修复后尚未重跑 CVM E2E**（需 Phala 部署 + `@phala/dstack-sdk`，本机不可验）。
+
 ## 运行时的 env（部署时用 `phala deploy -e` 注入，加密封进 TEE）
-`APP_B64`（代码）/ `RPC` / `PK`（testnet 丢弃钱包）/ `REGISTRY` / `AGENT_ID` / `TARGET` / `AMOUNT` / `DATA` / `PER_TX_LIMIT` / `WHITELIST` / `TRUSTED_CMD` / `MARKET_DATA` / `BLOCKLIST`
+`APP_B64` / `MODULES_B64`（2026-09-16 新增：`tee-runtime/` + `challenger/` 的 tar.gz，见 `scripts/pack-intee.mjs`）/ `RPC` / `PK`（testnet 丢弃钱包）/ `REGISTRY` / `AGENT_ID` / `TARGET` / `AMOUNT` / `DATA` / `PER_TX_LIMIT` / `DAILY_LIMIT`（无默认值，缺失即 `CONFIG_ERROR` 退出）/ `MAX_SLIPPAGE_BPS` / `ALLOWED_ASSETS` / `WHITELIST` / `TRUSTED_CMD` / `MARKET_DATA` / `BLOCKLIST` / `DAILY_SPENT`
 （LLM：`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`，见 `.env.example`）
 
 ## ✅ D5 现场 E2E 完成（2026-09-11）

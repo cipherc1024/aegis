@@ -1,6 +1,7 @@
 "use client";
 
 import { useL } from "@/lib/i18n";
+import { SampleBanner } from "@/components/SampleBanner";
 import { Wrench } from "lucide-react";
 
 function Code({ children }: { children: string }) {
@@ -17,14 +18,20 @@ export default function SdkPage() {
     <div className="mx-auto max-w-4xl">
       <div className="mb-5 flex items-center gap-2">
         <Wrench className="h-5 w-5 text-cyan" />
-        <h1 className="text-lg font-semibold">Aegis SDK</h1>
+        <h1 className="text-lg font-semibold">{L("Aegis SDK（规划中）", "Aegis SDK (planned)")}</h1>
       </div>
+
+      <SampleBanner
+        note={L(
+          "SDK 尚未发布：下方代码块是规划的 API 形态示意，npm 上不存在 @aegis/sdk，也无法安装。当前可用的真实接口是 orchestrator HTTP API（POST /api/agent/command、GET /api/receipts）与 scripts/ 下的脚本。",
+          "The SDK is not published: the snippets below are illustrative of a planned API; @aegis/sdk does not exist on npm and cannot be installed. The real interfaces available today are the orchestrator HTTP API (POST /api/agent/command, GET /api/receipts) and the scripts under scripts/."
+        )}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div>
-          <div className="mb-2 text-sm">{L("安装 + 初始化 Agent", "Install + initialize agent")}</div>
-          <Code>{`npm install @aegis/sdk
-
+          <div className="mb-2 text-sm">{L("安装 + 初始化 Agent（示意，未发布）", "Install + initialize agent (illustrative, unpublished)")}</div>
+          <Code>{`// 规划形态，尚未发布到 npm
 import { AegisAgent } from '@aegis/sdk'
 
 const agent = await AegisAgent.create({
@@ -34,7 +41,7 @@ const agent = await AegisAgent.create({
         </div>
 
         <div>
-          <div className="mb-2 text-sm">{L("执行交易 + 独立验证", "Execute + independently verify")}</div>
+          <div className="mb-2 text-sm">{L("执行交易 + 独立验证（示意，未发布）", "Execute + independently verify (illustrative, unpublished)")}</div>
           <Code>{`const receipt = await agent.execute({
   action: 'buy', asset: 'MON', amount: 0.1,
 })
@@ -46,7 +53,7 @@ const { fresh, bound, dcap } = await verifyReceipt(receipt.id)`}</Code>
       </div>
 
       <div className="card mt-4 p-5">
-        <div className="mb-3 text-sm">{L("SDK 能力", "Capabilities")}</div>
+        <div className="mb-3 text-sm">{L("规划能力（尚未提供）", "Planned capabilities (not yet available)")}</div>
         <ul className="grid grid-cols-1 gap-2 text-xs text-secondary sm:grid-cols-2">
           {[
             L("创建/管理 Agent（ERC-8004 身份）", "Create/manage agents (ERC-8004)"),
@@ -57,7 +64,7 @@ const { fresh, bound, dcap } = await verifyReceipt(receipt.id)`}</Code>
             L("审计导出（CSV/JSON）", "audit export (CSV/JSON)"),
           ].map((c) => (
             <li key={c} className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan" />
+              <span className="h-1.5 w-1.5 rounded-full bg-muted" />
               {c}
             </li>
           ))}

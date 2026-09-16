@@ -7,7 +7,7 @@
 > 用自己的代码独立重推导同一结论（L1–L5 五层），2-of-2 一致才放行执行。任何人在 Monad 链上即可独立验证。
 
 对应策略文档 `../第四版策略.md`。
-**状态：18/18 单测 + challenger selftest 17/17 + parity 17/17 + 全链路 Monad testnet 实测（见"已验证里程碑"）。**
+**状态：26/26 单测 + challenger selftest 17/17 + parity 17/17 + 全链路 Monad testnet 实测（见"已验证里程碑"）。**
 
 ## 信任边界（务必照此口径讲）
 
@@ -66,10 +66,10 @@ challenger/                    独立验证进程（可整目录拷到另一台�
   policy-attest.mjs            治理侧把认证 guardrailHash 设上链（--execute）
 dcap-verifier/                 链上 DCAP 全栈（Automata V4 verifier + PCCS DAO + DcapGate），STATUS.md 完整记录
 tee-runtime/                   Agent 循环（双 LLM 隔离管线 → 护栏 → PACE → 目标层 → 收据哈希；objective.mjs = L5 proposer 侧实现）
-tee/intee/                     In-TEE 自治闭环（Phala CVM 实测）
+tee/intee/                     In-TEE 自治闭环（Phala CVM 实测；2026-09-16 改为复用 tee-runtime/challenger 模块，见 STATUS.md 更正）
 orchestrator/                  零依赖服务：读侧（状态/收据/决策原文/SSE）+ 写侧（POST 决策 → 上链）；角色分离：本进程只当 proposer，不持有 challenger 私钥
 scripts/                       部署/验证/索引/负例/探测（d6-negative、parity-check、probe-dex、whitelist-wmon…）
-test/aegis.test.js             18 个测试
+test/aegis.test.js             26 个测试
 dashboard/                     Next.js 14 统一入口（评审动线：总览 → 现场跑一笔 → 独立验证器 → 架构与信任边界 → 收据流）
 ```
 
@@ -172,7 +172,7 @@ Kuru 等生态部署无法核实。官方文档 canonical 的 WMON
 ```powershell
 npm install
 npx hardhat compile   # evm target: paris（MCOPY 坑）
-npx hardhat test      # 18/18
+npx hardhat test      # 26/26
 
 # Challenger（独立进程；部署到另一台机器即成真 2-of-2，见 challenger/README.md）
 node challenger/challenger-agent.mjs          # 常驻轮询
@@ -205,7 +205,7 @@ cd ../dashboard && npm install && npm run build && npm start
 # 浏览器：/ → 现场跑一笔 /try → 独立验证器 /verify → 架构与信任边界 /architecture → 收据流 /receipts
 ```
 
-## 安全属性（合约层，18/18 测试覆盖）
+## 安全属性（合约层，26/26 测试覆盖）
 
 | 属性 | 位置 |
 |---|---|

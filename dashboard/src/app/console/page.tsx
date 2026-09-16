@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useL } from "@/lib/i18n";
+import { SampleBanner } from "@/components/SampleBanner";
 import { Cpu, Snowflake, Play, Lock, Check } from "lucide-react";
 
 const PIPELINE = [
@@ -15,10 +16,10 @@ const PIPELINE = [
 ];
 
 const METRICS = [
-  ["MRTD", "a7f2c8d9e1b4…"],
-  ["RTMR0", "7bf063280e94…"],
-  ["FMSPC", "20A06F"],
-  ["TCB Level", "UpToDate"],
+  ["MRTD", "—"],
+  ["RTMR0", "—"],
+  ["FMSPC", "—"],
+  ["TCB Level", "—"],
 ];
 
 export default function ConsolePage() {
@@ -26,7 +27,14 @@ export default function ConsolePage() {
   const [frozen, setFrozen] = useState(false);
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr]">
+    <div>
+      <SampleBanner
+        note={L(
+          "本页为控制台界面占位（冻结开关仅作用于本页状态，不写链；心跳与 TEE 度量无真实数据源）。真实读数见「总览 / 收据流 / 验证器」。",
+          "Placeholder console UI. The freeze toggle only affects local component state and writes nothing on-chain; heartbeat and TEE measurements have no real data source. For real readings see Overview / Receipts / Verifier."
+        )}
+      />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr]">
       {/* pipeline */}
       <div className="card p-5">
         <div className="mb-4 flex items-center gap-2 text-sm font-medium">
@@ -57,7 +65,7 @@ export default function ConsolePage() {
           <div className="mb-3 text-sm font-medium">{L("运行时控制", "Runtime control")}</div>
           <div className="space-y-2 text-xs">
             <Row k={L("状态", "Status")} v={frozen ? L("已冻结", "Frozen") : L("正常", "Healthy")} tone={frozen ? "text-red" : "text-green"} />
-            <Row k={L("心跳", "Heartbeat")} v={L("3 秒前", "3s ago")} />
+            <Row k={L("心跳", "Heartbeat")} v={L("无数据源", "no data source")} tone="text-muted" />
             <Row k={L("冻结", "Frozen")} v={frozen ? "true" : "false"} tone={frozen ? "text-red" : "text-secondary"} />
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -85,10 +93,17 @@ export default function ConsolePage() {
           </div>
           <div className="space-y-2 text-xs">
             {METRICS.map(([k, v]) => (
-              <Row key={k} k={k} v={v} />
+              <Row key={k} k={k} v={v} tone="text-muted" />
             ))}
           </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-muted">
+            {L(
+              "本页不接 TEE 端点。真实度量值请向 Phala CVM 取 attestation 后用 scripts/verify-quote.mjs 复验（见「验证器」页）。",
+              "This page does not query a TEE endpoint. For real measurements, fetch the Phala CVM attestation and re-verify with scripts/verify-quote.mjs (see Verifier)."
+            )}
+          </p>
         </div>
+      </div>
       </div>
     </div>
   );

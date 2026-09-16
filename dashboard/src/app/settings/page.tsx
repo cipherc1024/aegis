@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useL, useLang } from "@/lib/i18n";
+import { SampleBanner } from "@/components/SampleBanner";
 import { Wallet, Bell, Palette, Settings as Cog } from "lucide-react";
 
 const GROUPS = [
@@ -16,7 +17,15 @@ export default function SettingsPage() {
   const [active, setActive] = useState("account");
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-[200px_1fr]">
+    <div>
+      <h1 className="mb-4 text-lg font-semibold">{L("设置", "Settings")}</h1>
+      <SampleBanner
+        note={L(
+          "本页为界面占位：开关、输入框均为本地状态，不读写链上或后端；显示的钱包地址、MAX_BLOCK_AGE / STALENESS_LIMIT / TEE 度量白名单是示意值，非实际配置。真实值见 aegis/contracts 与 aegis/.env。",
+          "Placeholder UI: the toggles and inputs are local state only and read/write nothing on-chain or in the backend. The wallet address, MAX_BLOCK_AGE / STALENESS_LIMIT and TEE measurement allowlist shown are illustrative, not actual configuration. Real values live in aegis/contracts and aegis/.env."
+        )}
+      />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[200px_1fr]">
       {/* sub nav */}
       <div className="card h-fit p-2">
         {GROUPS.map((g) => {
@@ -40,7 +49,7 @@ export default function SettingsPage() {
       <div className="card p-5">
         {active === "account" && (
           <Section title={L("账户与安全", "Account & Security")}>
-            <Item label={L("钱包", "Wallet")} hint="0x2a0e…Ff0a9" action={L("断开", "Disconnect")} />
+            <Item label={L("钱包", "Wallet")} hint={L("未连接", "not connected")} action={L("断开", "Disconnect")} />
             <Toggle label={L("提现白名单（时间锁）", "Withdrawal allowlist (timelock)")} defaultOn />
             <Toggle label={L("API Key 管理", "API key management")} />
             <Toggle label={L("会话管理", "Session management")} defaultOn />
@@ -92,20 +101,21 @@ export default function SettingsPage() {
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="MAX_BLOCK_AGE">
-                <input className="inp mono" defaultValue="8" />
+                <input className="inp mono" defaultValue="—" />
               </Field>
               <Field label="STALENESS_LIMIT">
-                <input className="inp mono" defaultValue="60" />
+                <input className="inp mono" defaultValue="—" />
               </Field>
             </div>
             <Field label={L("TEE 度量白名单", "TEE measurement allowlist")}>
-              <input className="inp mono" defaultValue="a7f2c8d9…" />
+              <input className="inp mono" defaultValue="—" />
             </Field>
             <button className="rounded-lg border border-red/40 bg-red/5 px-3 py-2 text-xs font-medium text-red hover:bg-red/10">
               {L("导出私钥", "Export private key")}
             </button>
           </Section>
         )}
+      </div>
       </div>
 
       <style jsx>{`

@@ -77,7 +77,7 @@ agentId: 1 / validation response: 100 tag: tee-dcap / reputation summary: count=
 |---|---|
 | D6 负例 8/8（+1 正例对照）输出 | `node scripts/d6-negative.mjs`（每轮 ~0.15 MON，真实上链，跑前先跑一遍存截图） |
 | 坏 quote 位置扫描 11/13 | `node scripts/dcap-corrupt-sweep.mjs`（全 view 零成本） |
-| In-TEE 闭环实录 | `tee/intee/`（CVM 已删，用 STATUS.md 记录的 tx 截图代替） |
+| In-TEE 闭环实录 | `tee/intee/`（CVM 已删，用 STATUS.md 记录的 tx 截图代替；⚠️ 该笔 guardrailHash 口径有缺陷，2026-09-16 已修复，**截图时勿宣称摘要与链上一致**） |
 | 链上 DCAP 验证 | `scripts/dcap-verify.mjs`（gas 3.38M 那笔 tx 的 explorer 页） |
 | ERC-8004 完整输出 | `node scripts/erc8004.mjs`（每轮 ~0.1 MON） |
 | getLogs 100 块限制 | `scripts/index-receipts.mjs` 头注释（体现工程严谨，评委 VC 会喜欢） |

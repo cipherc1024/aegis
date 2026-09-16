@@ -306,10 +306,10 @@ describe("Aegis v4 contracts", function () {
       return { n, block, nonce };
     }
 
-    async function challengerValidate({ response }) {
+    async function challengerValidate({ response, signer = challenger }) {
       const digest = await registry.lastReceiptHash(AGENT_ID);
-      await validation.connect(challenger).validationRequest(challenger.address, AGENT_ID, "ipfs://challenge", digest);
-      await validation.connect(challenger).validationResponse(digest, response, "ipfs://verdict", ethers.ZeroHash, "challenger");
+      await validation.connect(signer).validationRequest(signer.address, AGENT_ID, "ipfs://challenge", digest);
+      await validation.connect(signer).validationResponse(digest, response, "ipfs://verdict", ethers.ZeroHash, "challenger");
     }
 
     it("rejects executeTrade when challenger has NOT validated the receipt", async () => {
@@ -318,11 +318,12 @@ describe("Aegis v4 contracts", function () {
       const eh = execHashOf(await target.getAddress(), amount, data);
       await proposerSubmit({ execHash: eh });
       await expect(vault.connect(tee).executeTrade(await target.getAddress(), amount, data)).to.be.revertedWith(
-        "No challenger quorum"
+        "Untrusted challenger"
       );
     });
 
-    it("rejects executeTrade when challenger disagrees (response=0)", async () => {
+    it("rejects executeTrade when friendly validator disagrees (response=0)", async () => {
+      await vault.connect(owner).setTrustedValidator(challenger.address, true);
       const amount = ethers.parseEther("0.1");
       const data = target.interface.encodeFunctionData("ping", [42]);
       const eh = execHashOf(await target.getAddress(), amount, data);
@@ -333,7 +334,8 @@ describe("Aegis v4 contracts", function () {
       );
     });
 
-    it("executes when challenger agrees (response=100) — mutual verification quorum", async () => {
+    it("executes when trusted challenger agrees (response=100) — mutual verification quorum", async () => {
+      await vault.connect(owner).setTrustedValidator(challenger.address, true);
       const amount = ethers.parseEther("0.1");
       const data = target.interface.encodeFunctionData("ping", [42]);
       const eh = execHashOf(await target.getAddress(), amount, data);
@@ -342,6 +344,109 @@ describe("Aegis v4 contracts", function () {
       await expect(vault.connect(tee).executeTrade(await target.getAddress(), amount, data))
         .to.emit(vault, "TradeExecuted")
         .withArgs(await target.getAddress(), amount, eh);
+    });
+
+    it("self-attestation cannot forge quorum: untrusted validator's 100 is ignored", async () => {
+      const impostor = ethers.Wallet.createRandom().connect(ethers.provider);
+      await owner.sendTransaction({ to: impostor.address, value: ethers.parseEther("1") });
+      await vault.connect(owner).setTrustedValidator(challenger.address, true);
+      const amount = ethers.parseEther("0.1");
+      const data = target.interface.encodeFunctionData("ping", [42]);
+      const eh = execHashOf(await target.getAddress(), amount, data);
+      await proposerSubmit({ execHash: eh });
+      // 攻击者自己背书自己：requestHash 与合法 challenger 相同
+      await challengerValidate({ response: 100, signer: impostor });
+      await expect(vault.connect(tee).executeTrade(await target.getAddress(), amount, data)).to.be.revertedWith(
+        "Untrusted challenger"
+      );
+    });
+
+    it("revoking a validator immediately stops honoring its prior endorsement", async () => {
+      await vault.connect(owner).setTrustedValidator(challenger.address, true);
+      const amount = ethers.parseEther("0.1");
+      const data = target.interface.encodeFunctionData("ping", [42]);
+      const eh = execHashOf(await target.getAddress(), amount, data);
+      await proposerSubmit({ execHash: eh });
+      await challengerValidate({ response: 100 });
+      await vault.connect(owner).setTrustedValidator(challenger.address, false);
+      await expect(vault.connect(tee).executeTrade(await target.getAddress(), amount, data)).to.be.revertedWith(
+        "Untrusted challenger"
+      );
+    });
+
+    it("validator allowlist is owner-only and rejects a zero address", async () => {
+      await expect(
+        vault.connect(challenger).setTrustedValidator(challenger.address, true)
+      ).to.be.revertedWith("Not owner");
+      await expect(vault.connect(owner).setTrustedValidator(ethers.ZeroAddress, true)).to.be.revertedWith(
+        "Zero validator"
+      );
+      await vault.connect(owner).setTrustedValidator(challenger.address, true);
+      expect(await vault.isTrustedValidator(challenger.address)).to.equal(true);
+      expect(await vault.trustedValidatorCount()).to.equal(1n);
+      await expect(vault.connect(owner).setTrustedValidator(challenger.address, true)).to.be.revertedWith("No change");
+    });
+  });
+
+  describe("ValidationRegistry guards", function () {
+    let identity, validation, owner, other, third;
+
+    beforeEach(async () => {
+      [owner, other, third] = await ethers.getSigners();
+      const Identity = await ethers.getContractFactory("IdentityRegistry");
+      identity = await Identity.deploy();
+      await identity.waitForDeployment();
+      const Val = await ethers.getContractFactory("ValidationRegistry");
+      validation = await Val.deploy(await identity.getAddress());
+      await validation.waitForDeployment();
+    });
+
+    const REQ = ethers.id("req-1");
+
+    it("rejects a duplicate requestHash", async () => {
+      await validation.connect(other).validationRequest(other.address, AGENT_ID, "ipfs://r", REQ);
+      await expect(
+        validation.connect(third).validationRequest(third.address, AGENT_ID, "ipfs://r2", REQ)
+      ).to.be.revertedWith("exists");
+    });
+
+    it("only the registered validator can answer", async () => {
+      await validation.connect(other).validationRequest(other.address, AGENT_ID, "ipfs://r", REQ);
+      await expect(
+        validation.connect(third).validationResponse(REQ, 100, "ipfs://v", ethers.ZeroHash, "t")
+      ).to.be.revertedWith("not validator");
+    });
+
+    it("rejects response > 100", async () => {
+      await validation.connect(other).validationRequest(other.address, AGENT_ID, "ipfs://r", REQ);
+      await expect(
+        validation.connect(other).validationResponse(REQ, 101, "ipfs://v", ethers.ZeroHash, "t")
+      ).to.be.revertedWith("response>100");
+    });
+
+    it("getSummary ignores unanswered requests and filters by tag", async () => {
+      const REQ2 = ethers.id("req-2");
+      await validation.connect(other).validationRequest(other.address, AGENT_ID, "ipfs://r", REQ);
+      await validation.connect(third).validationRequest(third.address, AGENT_ID, "ipfs://r", REQ2);
+      await validation.connect(other).validationResponse(REQ, 80, "ipfs://v", ethers.ZeroHash, "successRate");
+      // REQ2 未应答（lastUpdate == 0）→ 不进统计
+      const s1 = await validation.getSummary(AGENT_ID, [other.address, third.address], "successRate");
+      expect(s1[0]).to.equal(1n);
+      expect(s1[1]).to.equal(80n);
+      // tag 不匹配 → 计数 0
+      const s2 = await validation.getSummary(AGENT_ID, [other.address, third.address], "otherTag");
+      expect(s2[0]).to.equal(0n);
+      // 地址列表是过滤器：未列入的验证者不计入
+      const s3 = await validation.getSummary(AGENT_ID, [third.address], "successRate");
+      expect(s3[0]).to.equal(0n);
+    });
+
+    it("tracks per-agent validations and per-validator requests", async () => {
+      const REQ2 = ethers.id("req-2");
+      await validation.connect(other).validationRequest(other.address, AGENT_ID, "ipfs://r", REQ);
+      await validation.connect(other).validationRequest(other.address, AGENT_ID, "ipfs://r", REQ2);
+      expect(await validation.getAgentValidations(AGENT_ID)).to.deep.equal([REQ, REQ2]);
+      expect(await validation.getValidatorRequests(other.address)).to.deep.equal([REQ, REQ2]);
     });
   });
 });

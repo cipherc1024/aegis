@@ -231,7 +231,7 @@ interface Agent {
 |---|---|
 | 收据哈希 / semanticDigest 计算 | `aegis/tee-runtime/runtime.mjs` |
 | 护栏 / PACE / 双 LLM | `aegis/tee-runtime/{runtime,agent,llm}.mjs` |
-| TEE quote 生成（In-TEE） | `aegis/tee/intee/agent.mjs` |
+| TEE quote 生成（In-TEE） | `aegis/tee/intee/agent.mjs`（2026-09-16 起复用 `tee-runtime/runtime.mjs` + `challenger/verify.mjs` 的权威口径） |
 | 链上读写封装 | `aegis/scripts/lib.mjs` |
 | 独立验证 6 项 | `DcapGate.check` + `ReceiptRegistry.{lastReceiptHash,isTradeFresh,isAlive}` + `blockhash` |
 

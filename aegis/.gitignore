@@ -3,6 +3,7 @@ artifacts/
 cache/
 out/
 .env
+.env.intee
 secrets.txt
 
 # 运行时日志 / 本地留痕（含决策原文，可能含 prompt 内容，不入库）
