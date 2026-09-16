@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-16",
+  "txs": {
+    "deploy_CommittedOracle": "0x4ae38837b87ed0ca61d14917ea883bc938ce37e13fb57983cee46d72168b91d7",
+    "deploy_AtomicExecutor": "0x979e8ca8c7ae3a9817869048c26d6b0806190d3fb76c1cba2f46dcc9b2d8bf8b",
+    "deploy_AuditDraw": "0x98280ea8a9e7376ebf7ef4608fdca8785d3e457502bbd4143fc7e264544bf950",
+    "M2_postObservation": "0xd8a8dc9efad004aa7ca05d258105e813a924fe4cd58e09d34fcddc02417aada3 @63051989",
+    "M2_executeAtomic": "0x2dc3210087fef1fdbe08dccf928904da1cdcc5a10b476f891d513e4d76f29941 @63051997",
+    "M2_negative_fakeRoot": "0xfb6d87194c7168aee96809457e12232021fdb06f249b0c6c3fb18b68f39f8d6b @63052002 (status=0)",
+    "M3_commitDraw": "0xbbb72dfff340913cf410bf96b6a2652ae72d7b10589e5b54c18f7f035dcefcd0 @63052007",
+    "M3_revealDraw": "0xb7336a0dc8dbb39fe6ff170952b249c3ea324e1359c0ee6a4d1a1c6b42ff8a82 @63052022"
+  },
+  "gas": {
+    "deploy_CommittedOracle": 186463,
+    "deploy_AtomicExecutor": 337352,
+    "deploy_AuditDraw": 437498,
+    "M2_postObservation": 87372,
+    "M2_executeAtomic": 91483,
+    "M2_negative_fakeRoot": 200000,
+    "M3_commitDraw": 70102,
+    "M3_revealDraw": 215728
+  },
+  "notes": [
+    "commitRoot==链下重算: true",
+    "executor WMON 0→10000000000000000",
+    "M3 抽选链上==链下重算: true"
+  ]
+}

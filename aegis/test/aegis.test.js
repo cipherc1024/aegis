@@ -298,11 +298,11 @@ describe("Aegis v4 contracts", function () {
       await vault.connect(owner).deposit({ value: ethers.parseEther("10") });
     });
 
-    async function proposerSubmit({ execHash }) {
+    async function proposerSubmit({ execHash, heartbeat = false }) {
       const n = await ethers.provider.getBlockNumber();
       const block = await ethers.provider.getBlock(n);
       const nonce = ethers.hexlify(ethers.randomBytes(32));
-      await registry.connect(tee).submitReceipt(AGENT_ID, ethers.id("pdr"), GUARD, execHash, nonce, n, block.hash, false);
+      await registry.connect(tee).submitReceipt(AGENT_ID, ethers.id("pdr"), GUARD, execHash, nonce, n, block.hash, heartbeat);
       return { n, block, nonce };
     }
 
@@ -385,6 +385,36 @@ describe("Aegis v4 contracts", function () {
       expect(await vault.isTrustedValidator(challenger.address)).to.equal(true);
       expect(await vault.trustedValidatorCount()).to.equal(1n);
       await expect(vault.connect(owner).setTrustedValidator(challenger.address, true)).to.be.revertedWith("No change");
+    });
+
+    // 回归：白名单必须校验地址，但那要求钩子能独立定位"被背书的那张收据"。
+    // 若钩子读 lastReceiptHash，心跳收据（challenger 不背书）会顶掉交易收据的 digest，
+    // 此用例即 revert "No challenger quorum" —— 心跳之后交易全线作废。
+    it("a heartbeat between quorum and execution does not break the gate", async () => {
+      await vault.connect(owner).setTrustedValidator(challenger.address, true);
+      const amount = ethers.parseEther("0.1");
+      const data = target.interface.encodeFunctionData("ping", [42]);
+      const eh = execHashOf(await target.getAddress(), amount, data);
+
+      await proposerSubmit({ execHash: eh });
+      const tradeDigest = (await registry.lastTradeReceipt(AGENT_ID)).digest;
+      const endorsed = await registry.lastReceiptHash(AGENT_ID);
+      await challengerValidate({ response: 100 });
+      await proposerSubmit({ execHash: ethers.ZeroHash, heartbeat: true });
+
+      // 心跳换了链头，交易槽不动：钩子仍能定位到被 challenger 背书的那张收据。
+      // （assert 到链上实际读回值，避免把本地重算的 digest 当作事实）
+      const tradeSlot = (await registry.lastTradeReceipt(AGENT_ID)).digest;
+      const head = await registry.lastReceiptHash(AGENT_ID);
+      const headRec = await registry.latestReceipt(AGENT_ID);
+      expect(head).to.not.equal(endorsed);
+      expect(tradeSlot).to.equal(tradeDigest);
+      // 钩子读取的正是交易槽 digest：链头此刻是心跳，而交易槽仍是那张被背书收据
+      expect(headRec.isHeartbeat).to.equal(true);
+      expect(headRec.digest).to.not.equal(tradeSlot);
+      await expect(vault.connect(tee).executeTrade(await target.getAddress(), amount, data))
+        .to.emit(vault, "TradeExecuted")
+        .withArgs(await target.getAddress(), amount, eh);
     });
   });
 
