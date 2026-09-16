@@ -115,7 +115,7 @@ node scripts/soa-demo.mjs --onchain  # 真实上链版（需 orchestrator+challe
 
 - **私钥等敏感信息全在 `aegis/.env`**（已被 `.gitignore` 忽略，**切勿提交/外传**）。当前 key：`MONAD_TESTNET_PK`、`MONAD_TESTNET_RPC`、`MONAD_TESTNET_CHAIN_ID`、`CHALLENGER_PK`、`QUORUM_VAULT`、`SOA_USER_PK`（"用户"角色签名私钥，只签名、不需要资金；真实部署中应在用户设备上）。
 - ~~`aegis/secrets.txt`~~ 已并入 `.env` 并删除（2026-09-13 Phase 0）。
-- **已 git init（2026-09-13 baseline）**，无远程；`.env`、secrets、vendor（359MB）、构建产物、日志已被根 `.gitignore` 忽略——提交前仍需确认敏感文件未进暂存区。
+- **已 git init（2026-09-13 baseline）**；**2026-09-16 首推远程**——`origin` = `https://github.com/cipherc1024/aegis`（**private**），`main` 已 push，artifact 固定 commit tag = **`w11-m2m3-2026-09-16`**（指向 `033eefd`）。`.env`、secrets、vendor（359MB）、构建产物、日志已被根 `.gitignore` 忽略——提交前仍需确认敏感文件未进暂存区。**投稿前必须建匿名镜像**（Zenodo / 匿名 GitHub），论文引用不得指向作者个人仓库（双盲）。
 - **钱包**：
   - 主钱包（=proposer =deployer =TEE =owner）：`0x2a0eECA027B617F5e6f631a5475dc283294Ff0a9`，余额约 **0.59 MON**（2026-09-15 SOA 链上 E2E 跑完后；单笔全链 E2E 实测 ≈0.37 MON，建议 ≥0.5 再跑）
   - challenger：`0x16e619c3d6625f4d6F583791A4C2351D65508a2c`，余额约 **0.57 MON**（2026-09-15 向主钱包补 0.5 后；另需给第二台机器新钱包注资 ~0.5）

@@ -6,6 +6,11 @@
 >
 > 诚实前提：默认路径**单工作站零 gas**（离线 harness）；链上与 live LLM 项为可选档，见 §4/§5。
 
+**固定 commit（Available 徽章锚点）**：`033eefdfb4f650cab561b00974a9aa225cddfeb4`，
+tag `w11-m2m3-2026-09-16`。**投稿前须建匿名镜像**（Zenodo 或匿名 GitHub 组织）并把
+引用链接指向镜像的该 tag——当前 `origin` 为作者私有仓库 `cipherc1024/aegis`，
+**不可直接写进论文**（双盲投稿会泄露身份）。
+
 ## 0. 环境要求
 
 - Node.js ≥ 22（开发实测 v24）、npm；`npm install`
