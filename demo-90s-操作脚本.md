@@ -20,7 +20,7 @@
 
 ```powershell
 # 预先跑一笔真实交易（录屏前执行，或录屏时切终端执行）：
-# 收据（链上 DCAP 验真）→ challenger 独立重推导 → executeTrade{value} → 金库真实转账
+# 收据（链上 DCAP 验真）→ challenger 独立重推导 → executeTrade（金库余额出资）→ 金库真实转账
 curl.exe -X POST "http://localhost:8787/api/agent/command?agentId=1" -H "Content-Type: application/json" -d "{\"command\":\"buy WMON 0.01\",\"dryRun\":false,\"execute\":true}"
 # 预期输出: decision=approved_onchain, receipt txHash=0x…, execution.status=executed
 ```

@@ -20,6 +20,11 @@ L5 的语义：用户签署的是**目标**（期望金额 ± ε、上限、期�
 
 前置：Node ≥ 20。
 
+> **一键脚本（推荐）**：`node setup-second-host.mjs`（或 Windows 双击 `一键配置-第二台机器.cmd`）
+> 自动完成下面 1–6 步并跑自测；连上 A 时用
+> `node setup-second-host.mjs --orch-url http://<A的IP>:8787 --vault <QUORUM_VAULT> --run`。
+> 下面的手工步骤供理解与排错。
+
 ```bash
 # 1) 拷贝整个 challenger/ 目录到本机（U 盘/压缩包均可）
 # 2) 安装依赖

@@ -20,7 +20,8 @@ services:
       - AMOUNT=${AMOUNT}
       - DATA=${DATA}
       - PER_TX_LIMIT=${PER_TX_LIMIT}
-      # dailyLimit 无默认值：agent.mjs 会 CONFIG_ERROR 退出（避免与链上策略静默分叉）
+      # 以下四项一并进 policyHash，缺任一项 agent.mjs 都会 CONFIG_ERROR 退出
+      # （避免用默认值算出一个与链上 agentGuardrailHash 不同的策略哈希）
       - DAILY_LIMIT=${DAILY_LIMIT}
       - MAX_SLIPPAGE_BPS=${MAX_SLIPPAGE_BPS}
       - WHITELIST=${WHITELIST}

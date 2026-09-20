@@ -22,21 +22,34 @@ const e = process.env;
 //    agentGuardrailHash 不同的值（challenger/verify.mjs:34-45）。
 const policy = {
   agentId: Number(e.AGENT_ID),
-  whitelist: (e.WHITELIST || e.TARGET || "").split(",").map((x) => x.toLowerCase()).filter(Boolean),
+  // ⚠️ 不得做任何大小写折叠：policyHash = keccak(JSON.stringify(...)) 是大小写敏感的，
+  //    链上 agentGuardrailHash 由 challenger-policy.json 原样（EIP-55 checksum 大小写）算出，
+  //    这里 toLowerCase 会让两侧哈希永远不等 → 收据在 _submit 的 "Guardrail mismatch" 处必然 revert。
+  //    白名单/PACE 的地址比对本身就是大小写不敏感的（runtime.mjs:96 两侧都 toLowerCase），
+  //    故折叠对匹配毫无收益，只破坏哈希。
+  whitelist: (e.WHITELIST || e.TARGET || "").split(",").map((x) => x.trim()).filter(Boolean),
   perTxLimit: e.PER_TX_LIMIT,
-  dailyLimit: e.DAILY_LIMIT || e.PER_TX_LIMIT,
-  maxSlippageBps: Number(e.MAX_SLIPPAGE_BPS ?? 0),
+  dailyLimit: e.DAILY_LIMIT,
+  maxSlippageBps: Number(e.MAX_SLIPPAGE_BPS),
   blocklist: (e.BLOCKLIST || "").split(",").map((x) => x.trim()).filter(Boolean),
-  allowedAssets: (e.ALLOWED_ASSETS || "MON").split(",").map((x) => x.trim()).filter(Boolean),
+  allowedAssets: (e.ALLOWED_ASSETS || "").split(",").map((x) => x.trim()).filter(Boolean),
 };
 
-// PACE 的限额比较是 BigInt(x) 直接抛异常（非 fail-closed），故先在边界处挡住
-if (!e.PER_TX_LIMIT || !e.DAILY_LIMIT) {
-  console.log("CONFIG_ERROR=PER_TX_LIMIT/DAILY_LIMIT 必须显式给出（不设默认，避免与链上策略静默分叉）");
+// 下面几项一旦缺省，policyHash 就会与链上分叉（收据必然 revert），
+// 或 BigInt(x) 抛非 fail-closed 异常。故一律不设默认值，缺了就在边界处退出。
+const REQUIRED = ["AGENT_ID", "TARGET", "AMOUNT", "PER_TX_LIMIT", "DAILY_LIMIT", "MAX_SLIPPAGE_BPS", "WHITELIST", "ALLOWED_ASSETS"];
+const missing = REQUIRED.filter((k) => e[k] === undefined || e[k] === "");
+if (missing.length) {
+  console.log("CONFIG_ERROR=以下环境变量必须显式给出（无默认值，避免与链上策略静默分叉）：" + missing.join(","));
   process.exit(1);
 }
+// PACE 的限额比较是 BigInt(x) 直接抛异常（非 fail-closed），故先在边界处挡住
 if (!/^\d+$/.test(e.PER_TX_LIMIT) || !/^\d+$/.test(e.DAILY_LIMIT)) {
   console.log("CONFIG_ERROR=PER_TX_LIMIT/DAILY_LIMIT 必须是十进制 wei 字符串");
+  process.exit(1);
+}
+if (!/^\d+$/.test(e.MAX_SLIPPAGE_BPS)) {
+  console.log("CONFIG_ERROR=MAX_SLIPPAGE_BPS 必须是十进制整数");
   process.exit(1);
 }
 

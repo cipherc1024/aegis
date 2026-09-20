@@ -85,7 +85,11 @@ ROOT cert / SIGNING cert / PLATFORM cert / root CA CRL / PCK CRL / TCB info / QE
 - `tee-runtime/`：双 LLM 隔离（可插拔，OpenAI 兼容适配器 + mock 回退）、PACE 验证器、护栏管线；离线 `semanticDigest` 与链上一致
 
 > ⚠️ **更正（2026-09-16 审计发现）**：本节的 `GUARDRAIL_HASH=0x9bd27ccb…` 来自 `tee/intee/agent.mjs` 当时**手写的独立护栏实现**，其 guardrailHash 是硬编码的 `keccak256(toUtf8Bytes("guardrail-v1"))`——**该值不可能等于链上认证的 `agentGuardrailHash = keccak256(abi.encode("guardrail-v1", policyHash(policy)))`**。也就是说：那笔"STATUS=1"的收据之所以能上链，是因为 `_submit` 当时**没有**校验 guardrailHash 与 registry 认证值的一致性；而该决策摘要**不是**挑战者会独立重推导出的同一个值（两者 `norm` 也不同：手写版缺 leet 折叠）。因此「摘要与链上一致」这条早于 challenger/parity 出现的结论，**对 guardrailHash 口径不成立**。
-> 已修复（2026-09-16）：`tee/intee/agent.mjs` 删除自实现，改为 import `tee-runtime/runtime.mjs` 与 `challenger/verify.mjs` 的权威实现，第三口径从根上消除；部署路径同步改为 `MODULES_B64`（见 `scripts/pack-intee.mjs`）。**修复后尚未重跑 CVM E2E**（需 Phala 部署 + `@phala/dstack-sdk`，本机不可验）。
+> 已修复（2026-09-16）：`tee/intee/agent.mjs` 删除自实现，改为 import `tee-runtime/runtime.mjs` 与 `challenger/verify.mjs` 的权威实现，第三口径从根上消除；部署路径同步改为 `MODULES_B64`（见 `scripts/pack-intee.mjs`）。
+>
+> **✅ 复跑已通过（2026-09-18）**：真实 Phala CVM 内还原 + 执行 + 上链，`GUARDRAIL_HASH = RUNTIME_GUARDRAIL_HASH = 0x0fd539cd4a11ce561849886834cea1fe09513b64dae4f20da838d4132c0cfb84`，**与链上 `agentGuardrailHash` 相等**（第三口径消除得证）；`QUOTE_BYTES=5010`；`SUBMIT_TX=0xadf522038b8ace6d7ada14ca491b527eb3ab8caf630153d2570b799ec96003be` @63607466（gas 3,477,689，`status=1`），`NEW_LAST_RECEIPT_HASH=0x06f413a5…2015bc`，`DECISION=approved_onchain`。收据事件三字段（executionHash/pdrHash/guardrailHash）已与 CVM 日志逐字段独立比对一致。**边界**：进程止于 `submitReceiptWithQuote`，不含 challenger 重推导与 executeTrade（第二段由 v4 全链 E2E 覆盖）。
+>
+> **部署踩坑（2026-09-18 实测）**：① `phala deploy -e K=V` 会**按空格切分 V**——`BLOCKLIST` 的 `ignore previous` 被静默截断成 `ignore` → policyHash 与链上不等 → 收据 `Guardrail mismatch`；含空格的取值必须走 **env-file**（`-e somefile.env`）。② `--no-public-logs` 会让 `phala logs` 拒绝输出（`public_logs=false`），读日志须 `--public-logs`；`phala logs` 的 CVM 参数是 **`--cvm-id <值>`**，不是位置参数。③ CVM 删除后 env **不可再取**（`phala cvms get` → 404 `ERR-03-001`），故须在删除前 dump env。
 
 ## 运行时的 env（部署时用 `phala deploy -e` 注入，加密封进 TEE）
 `APP_B64` / `MODULES_B64`（2026-09-16 新增：`tee-runtime/` + `challenger/` 的 tar.gz，见 `scripts/pack-intee.mjs`）/ `RPC` / `PK`（testnet 丢弃钱包）/ `REGISTRY` / `AGENT_ID` / `TARGET` / `AMOUNT` / `DATA` / `PER_TX_LIMIT` / `DAILY_LIMIT`（无默认值，缺失即 `CONFIG_ERROR` 退出）/ `MAX_SLIPPAGE_BPS` / `ALLOWED_ASSETS` / `WHITELIST` / `TRUSTED_CMD` / `MARKET_DATA` / `BLOCKLIST` / `DAILY_SPENT`
@@ -172,5 +176,8 @@ ROOT cert / SIGNING cert / PLATFORM cert / root CA CRL / PCK CRL / TCB info / QE
 - setup：guardrail 0x1111...11、TEE 授权、MockTarget 部署、白名单/限额、vault 注资 0.5 MON
 - 场景1（无验证）：executeTrade revert "No challenger quorum"——TradeExecuted 事件扫描确认该场景 0 个事件
 - 场景2（challenger 同意）：validationRequest + validationResponse(100) → executeTrade 成功，**TradeExecuted 事件 @块 62070391，tx 0xa16248508c76f82d1a9381ca3836e1a457a1410ec8aab63e60e9f077a6b7d965**
-- 注意：executeTrade 的 target.call 不带 value（原生 MON 传递为已知边界），vault 余额不动属正常
+- 注意（**该条已被后续版本推翻，保留作历史**）：当时 v1 的 `executeTrade` 未给 `target.call` 传 value，故金库余额不动。
+  v2 起 `executeTrade` 已 `target.call{value: value}(data)`——**出资方是金库自有余额**（`deposit()` 注入），
+  `executeTrade` 本身**非 payable**（刻意设计，三条理由见 `contracts/AegisVault.sol` 的 `@dev`）。
+  本条当时的"已知边界"已在 v2 消解；Phase 4 及之后的 E2E 均可见金库余额真实变动。
 - 主钱包剩 ~0.38 MON；challenger 剩 ~4 MON

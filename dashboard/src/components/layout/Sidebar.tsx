@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { NAV } from "@/lib/nav";
 import { Shield, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-export type AgentStatus = "ok" | "stale" | "frozen";
+export type AgentStatus = "ok" | "stale" | "frozen" | "offline";
 
 const STATUS_META: Record<AgentStatus, { label: string; color: string; dot: string }> = {
   ok: { label: "正常", color: "text-green", dot: "bg-green dot-pulse" },
   stale: { label: "收据不新鲜", color: "text-amber", dot: "bg-amber dot-pulse-fast" },
   frozen: { label: "已冻结", color: "text-red", dot: "bg-red" },
+  offline: { label: "链上不可达", color: "text-muted", dot: "bg-muted" },
 };
 
 export function Sidebar({

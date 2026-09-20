@@ -3,7 +3,7 @@
 //
 // 用法：
 //   node scripts/pack-intee.mjs            # 打印两个变量（零副作用）
-//   node scripts/pack-intee.mjs --env      # 写成 .env.intee（含私钥，勿提交）
+//   node scripts/pack-intee.mjs --env      # 写成 .env.intee（只含 APP_B64/MODULES_B64，勿提交）
 //
 // ⚠️ agent.mjs 复用仓库模块（tee-runtime/runtime.mjs、challenger/verify.mjs），
 //    故单文件 base64 已不够——必须同时带 MODULES_B64，否则 CVM 内 import 解析失败。
@@ -54,11 +54,11 @@ if (process.argv.includes("--env")) {
   writeFileSync(
     out,
     [
-      "# 由 scripts/pack-intee.mjs 生成 —— 含私钥，切勿提交/外传",
+      "# 由 scripts/pack-intee.mjs 生成 —— 只含 APP_B64/MODULES_B64（不含 PK/密钥），仍勿提交",
       "APP_B64=" + appB64,
       "MODULES_B64=" + modulesB64,
       "",
     ].join("\n")
   );
-  console.log("\n已写入 " + out + "（⚠️ 请连同 PK/RPC 等一起 export 后再跑 docker compose）");
+  console.log("\n已写入 " + out + "（⚠️ 本文件不含 PK/RPC 等运行期变量，须另行 export 或经 -e 传入；含空格的取值请走 env-file）");
 }

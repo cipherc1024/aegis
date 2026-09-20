@@ -91,6 +91,6 @@ console.log("  validation response:", st[2].toString(), "validator:", st[0].slic
 const tx = await vault.executeTrade(await mock.getAddress(), amount, data);
 const r = await tx.wait();
 console.log("  executeTrade status:", r.status, "gas:", r.gasUsed.toString());
-console.log("  vault balance after:", (await wallet.provider.getBalance(QUORUM_VAULT)).toString(), "(executeTrade 不带 value，余额不动)");
+console.log("  vault balance after:", (await wallet.provider.getBalance(QUORUM_VAULT)).toString(), "(本脚本是 v1 版草图：target.call 未传 value，故金库余额不动；v2+ 为金库余额出资，见 agents.md §11)");
 console.log("== E2E DONE ==");
 process.exit(0);

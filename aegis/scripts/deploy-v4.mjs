@@ -23,6 +23,8 @@ const AGENT_ID = 1n;
 const TEE = wallet.address;
 const OWNER = wallet.address;
 const CHALLENGER = process.env.CHALLENGER_ADDR || "0x16e619c3d6625f4d6F583791A4C2351D65508a2c";
+const PER_TX = 50_000_000_000_000_000n;      // 0.05 MON
+const DAILY = 1_000_000_000_000_000_000n;    // 1 MON
 
 const policy = JSON.parse(
   fs.readFileSync(path.join(__dirname, "..", "challenger", "challenger-policy.json"), "utf8")
@@ -38,8 +40,9 @@ console.log("challenger  :", CHALLENGER);
 console.log("guardrail   :", GUARD);
 console.log("");
 
-if (Number(bal) / 1e18 < 0.8) {
-  console.error(`余额不足：需 ≥0.8 MON（大合约部署实测约 0.78），当前 ${(Number(bal) / 1e18).toFixed(4)}`);
+// 实测部署 + 授权 + setLimits 合计约 0.275 MON（2026-09-16，estimateGas 1,359,331 × maxFee），留余量取 0.4
+if (Number(bal) / 1e18 < 0.4) {
+  console.error(`余额不足：需 ≥0.4 MON（实测约 0.275），当前 ${(Number(bal) / 1e18).toFixed(4)}`);
   process.exit(1);
 }
 
@@ -74,6 +77,14 @@ await tx.wait();
 const trusted = await vault.isTrustedValidator(CHALLENGER);
 const countAfter = await vault.trustedValidatorCount();
 console.log("  isTrustedValidator:", trusted, "count:", countAfter.toString());
+
+console.log("\n== 设 PACE 限额 ==");
+const txL = await vault.setLimits(PER_TX, DAILY);
+console.log("  tx:", txL.hash);
+await txL.wait();
+const [perTx, daily] = await Promise.all([vault.perTxLimit(), vault.dailyLimit()]);
+console.log("  perTxLimit:", perTx.toString(), perTx === PER_TX ? "OK" : "MISMATCH");
+console.log("  dailyLimit:", daily.toString(), daily === DAILY ? "OK" : "MISMATCH");
 
 console.log("\n=== 部署完成 ===");
 console.log("QUORUM_VAULT =", addr);

@@ -134,6 +134,67 @@ describe("Aegis v4 contracts", function () {
     ).to.be.revertedWith("Exceeds daily limit");
   });
 
+  it("reverts with a distinguishable error when the vault has no funds for the trade", async () => {
+    // 金库出资语义：金额在限额内但金库余额不足时，必须与「标的不配合」的
+    // "Trade failed" 区分开，否则运维无法判断是没注资还是被调用方 revert
+    await vault.connect(owner).setLimits(ethers.parseEther("0.04"), ethers.parseEther("0.05"));
+    const amount = ethers.parseEther("0.04");
+    const data = target.interface.encodeFunctionData("ping", [1]);
+    const eh = execHashOf(await target.getAddress(), amount, data);
+    await submitReceipt({ execHash: eh });
+
+    // 抽干金库（withdraw 永不冻结，owner 逃生通道）
+    const bal = await ethers.provider.getBalance(await vault.getAddress());
+    await vault.connect(owner).withdraw(bal);
+
+    await expect(
+      vault.connect(tee).executeTrade(await target.getAddress(), amount, data)
+    ).to.be.revertedWith("Insufficient vault balance");
+  });
+
+  it("v5: setReceiptRegistry swaps the receipt source without losing vault funds", async () => {
+    // 旧 registry 被淘汰时（升级 bindTranscript 公式等），金库必须能改指新表。
+    // 若 registry 是不可变的，资金只能 withdraw→redeploy，金库地址/白名单/限额/余额历史全作废。
+    const Reg = await ethers.getContractFactory("ReceiptRegistry");
+    const newReg = await Reg.deploy(gov.address);
+    await newReg.waitForDeployment();
+    await newReg.connect(gov).authorizeTEE(AGENT_ID, tee.address);
+    await newReg.connect(gov).setGuardrailHash(AGENT_ID, GUARD);
+
+    const balBefore = await ethers.provider.getBalance(await vault.getAddress());
+    await expect(vault.connect(owner).setReceiptRegistry(await newReg.getAddress()))
+      .to.emit(vault, "ReceiptRegistryUpdated")
+      .withArgs(await registry.getAddress(), await newReg.getAddress());
+    expect(await vault.registry()).to.equal(await newReg.getAddress());
+    expect(await ethers.provider.getBalance(await vault.getAddress())).to.equal(balBefore);
+
+    // 指向新表后，旧表的收据不再被认可（钩子读的是新表）
+    const amount = ethers.parseEther("0.1");
+    const data = target.interface.encodeFunctionData("ping", [42]);
+    const eh = execHashOf(await target.getAddress(), amount, data);
+    await submitReceipt({ execHash: eh }); // 写进旧 registry
+    await expect(
+      vault.connect(tee).executeTrade(await target.getAddress(), amount, data)
+    ).to.be.revertedWith("No fresh trade receipt");
+
+    // 新表上有收据 + PDR 绑定后即恢复执行（白名单/限额/余额原样保留，未重设）
+    const n = await ethers.provider.getBlockNumber();
+    const block = await ethers.provider.getBlock(n);
+    await newReg
+      .connect(tee)
+      .submitReceipt(AGENT_ID, ethers.id("pdr"), GUARD, eh, ethers.hexlify(ethers.randomBytes(32)), n, block.hash, false);
+    await expect(vault.connect(tee).executeTrade(await target.getAddress(), amount, data))
+      .to.emit(vault, "TradeExecuted")
+      .withArgs(await target.getAddress(), amount, eh);
+  });
+
+  it("v5: setReceiptRegistry is owner-only and rejects a zero address", async () => {
+    await expect(
+      vault.connect(attacker).setReceiptRegistry(await registry.getAddress())
+    ).to.be.revertedWith("Not owner");
+    await expect(vault.connect(owner).setReceiptRegistry(ethers.ZeroAddress)).to.be.revertedWith("Zero addr");
+  });
+
   it("dead-man switch: freezes when stale, resumes only after a fresh receipt", async () => {
     await submitReceipt({ execHash: ethers.id("exec-x") });
     expect(await registry.isAlive(AGENT_ID, 60)).to.equal(true);
@@ -412,6 +473,36 @@ describe("Aegis v4 contracts", function () {
       // 钩子读取的正是交易槽 digest：链头此刻是心跳，而交易槽仍是那张被背书收据
       expect(headRec.isHeartbeat).to.equal(true);
       expect(headRec.digest).to.not.equal(tradeSlot);
+      await expect(vault.connect(tee).executeTrade(await target.getAddress(), amount, data))
+        .to.emit(vault, "TradeExecuted")
+        .withArgs(await target.getAddress(), amount, eh);
+    });
+    it("v5: swapping the registry makes the quorum hook read the new table", async () => {
+      await vault.connect(owner).setTrustedValidator(challenger.address, true);
+      const amount = ethers.parseEther("0.1");
+      const data = target.interface.encodeFunctionData("ping", [42]);
+      const eh = execHashOf(await target.getAddress(), amount, data);
+
+      const Reg = await ethers.getContractFactory("ReceiptRegistry");
+      const newReg = await Reg.deploy(gov2.address);
+      await newReg.waitForDeployment();
+      await newReg.connect(gov2).authorizeTEE(AGENT_ID, tee.address);
+      await newReg.connect(gov2).setGuardrailHash(AGENT_ID, GUARD);
+      await vault.connect(owner).setReceiptRegistry(await newReg.getAddress());
+
+      const n = await ethers.provider.getBlockNumber();
+      const block = await ethers.provider.getBlock(n);
+      await newReg
+        .connect(tee)
+        .submitReceipt(AGENT_ID, ethers.id("pdr"), GUARD, eh, ethers.hexlify(ethers.randomBytes(32)), n, block.hash, false);
+
+      // challenger 只背书交易槽那张收据 —— 换表后钩子必须从新表取 digest 才放行
+      const digest = await newReg.lastReceiptHash(AGENT_ID);
+      await validation.connect(challenger).validationRequest(challenger.address, AGENT_ID, "ipfs://challenge", digest);
+      await validation
+        .connect(challenger)
+        .validationResponse(digest, 100, "ipfs://verdict", ethers.ZeroHash, "challenger");
+
       await expect(vault.connect(tee).executeTrade(await target.getAddress(), amount, data))
         .to.emit(vault, "TradeExecuted")
         .withArgs(await target.getAddress(), amount, eh);

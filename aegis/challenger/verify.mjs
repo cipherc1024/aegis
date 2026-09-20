@@ -1,4 +1,11 @@
-// Aegis Challenger 验证器（自包含包 —— 整目录拷到 proposer 之外的机器运行，与 proposer 零共享代码）
+// Aegis Challenger 验证器（自包含包 —— 整目录拷到 proposer 之外的机器运行，本文件不 import proposer 任何模块）
+//
+// 独立性方向（准确表述）：本模块单向独立 —— 只依赖 ethers + ./objective.mjs。
+// 反之 orchestrator/server.mjs 会 import 本模块的 verifyDecision/attestedGuardrailHash
+// （dry-run 预览复用裁决逻辑），故 scripts/parity-check.mjs 守卫的是
+// 「proposer 预览 vs 本模块裁决」这一方向；本模块若单方面改口径不会被该守卫检出，
+// 改动 L1–L5 判据后需人工核对 orchestrator/server.mjs 的自持护栏表（INJECTION_PATTERNS）。
+//
 //
 // 5 层独立重推导（L1–L5，对每一层都可单独说"不"）：
 //   L1 策略认证   收据 guardrailHash 必须等于 keccak("guardrail-v1", challenger 自持策略哈希)

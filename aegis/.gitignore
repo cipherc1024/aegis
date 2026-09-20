@@ -13,3 +13,6 @@ orchestrator/decisions.jsonl
 
 # 度量实验产物（按需入库时用 --out results/xxx.json 显式指定）
 llm-divergence*.json
+
+# in-TEE CVM 部署用的临时 compose（含一次性探针/部署串，不入库）
+.intee-deploy/

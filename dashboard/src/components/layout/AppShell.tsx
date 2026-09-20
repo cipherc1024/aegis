@@ -6,12 +6,13 @@ import { usePathname } from "next/navigation";
 import { Sidebar, type AgentStatus } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAgentStatus } from "@/lib/useAgentStatus";
-import { LayoutDashboard, ScrollText, ScanSearch, Wallet, Monitor } from "lucide-react";
+import { LayoutDashboard, ScrollText, ScanSearch, Wallet, Monitor, Network } from "lucide-react";
 
 const TABS = [
   { href: "/dashboard", icon: LayoutDashboard, label: "主页" },
   { href: "/receipts", icon: ScrollText, label: "收据" },
   { href: "/verify", icon: ScanSearch, label: "验证" },
+  { href: "/architecture", icon: Network, label: "架构" },
   { href: "/console", icon: Monitor, label: "Console" },
   { href: "/funds", icon: Wallet, label: "资金" },
 ];
@@ -21,7 +22,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const s = useAgentStatus(1n);
 
-  const status: AgentStatus = !s || !s.online ? "ok" : !s.alive ? "frozen" : !s.fresh ? "stale" : "ok";
+  // 链不可达时必须显示"不可达"，绝不能落到"正常"——否则 RPC 挂掉时
+  // 侧边栏会亮绿点说一切正常，这比不显示状态更有害。
+  const status: AgentStatus = !s || !s.online ? "offline" : !s.alive ? "frozen" : !s.fresh ? "stale" : "ok";
 
   return (
     <div className="bg-top-glow relative flex h-screen overflow-hidden">

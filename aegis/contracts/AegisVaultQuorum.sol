@@ -67,7 +67,8 @@ contract AegisVaultQuorum is AegisVault {
     ///      故读链头会让心跳之后的交易全部 revert。此处的 digest 与
     ///      isTradeFresh / latestExecutionHash 同源（都取自 lastTradeReceipt）。
     ///      lastTradeReceipt 是 registry 的既有 public getter（自 v2 起在线），
-    ///      故无需重部署 registry 即可启用本钩子。
+    ///      v5 起 registry 可由 owner 经 setReceiptRegistry 更换——更换后本钩子
+    ///      自动改读新表，无需重部署金库（资金、白名单、限额、余额历史全部保留）。
     function _preExecutionHook(bytes32) internal view override {
         bytes32 digest = registry.lastTradeReceipt(agentId).digest;
         (address validator, , uint8 response, , , ) = validationRegistry.getValidationStatus(digest);
