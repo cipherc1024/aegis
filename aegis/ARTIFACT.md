@@ -6,16 +6,15 @@
 >
 > 诚实前提：默认路径**单工作站零 gas**（离线 harness）；链上与 live LLM 项为可选档，见 §4/§5。
 
-**固定 commit（Available 徽章锚点）**：匿名镜像
+**固定 commit（Available 徽章锚点）**：公开仓库
 `https://github.com/<anonymous-artifact-mirror>`，tag **`artifact-anon-2026-09-21`**。
-**论文引用一律写仓库 URL + tag 名，不写裸 sha**（镜像 tag 曾因文档修正重打过，裸 sha 会漂；
-固定 sha 以 tag 解析为准：`git rev-parse artifact-anon-2026-09-21`）。该镜像提交身份全为中性占位符
-`aegis-dev <aegis@local>`，不含作者身份信息；本地开发仓 `Monad量化` 为私有仓，
-**其地址不得写入论文**（双盲）。镜像内 `aegis/ARTIFACT.md` 即本文件的对等版本（内容一致，仅锚点段不同）。
+**引用一律写仓库 URL + tag 名，不写裸 sha**（tag 曾因文档修正重打过，裸 sha 会漂；
+固定 sha 以 tag 解析为准：`git rev-parse artifact-anon-2026-09-21`）。该仓库提交身份全为中性占位符
+`aegis-dev <aegis@local>`。公开镜像内 `aegis/ARTIFACT.md` 即本文件的对等版本（内容一致，仅裸 URL 被替换为占位符）。
 
-> **旧 tag 说明**：`artifact-anon-2026-09-17` / `artifact-anon-2026-09-18` 为历史版本，分别早于
-> v5 金库重部署与 in-TEE CVM E2E 证据同步——**其中的文档指向已废弃的 v4 金库地址、合约源码不含
-> v5 的 `setReceiptRegistry`**。复现请一律使用 `artifact-anon-2026-09-21`。
+> **旧 tag 说明**：`artifact-anon-2026-09-17` 为历史版本，早于 v5 金库重部署与 in-TEE CVM E2E
+> 证据同步——**其中的文档指向已废弃的 v4 金库地址、合约源码不含 v5 的 `setReceiptRegistry`**。
+> 复现请一律使用 `artifact-anon-2026-09-21`。
 
 ## 0. 环境要求
 
@@ -49,6 +48,8 @@
 | 8 | `python figs/make-fig1.py` | Figure 1 谱系图（spectrum.png/pdf/svg） |
 | 9 | `python figs/make-figs.py` | Figure 4 cost-frontier |
 | 10 | `python figs/bond-check.py` | Figure 5 bond 数值校验（种子 20260916，合成蒙特卡洛，16/16 格在界内） |
+
+> 第 8–10 条为论文配套脚本，**不在本仓库内**，已在论文仓单独收录；它们与 §1 的复现表相互独立，不影响 1–7 条的判定。
 
 ## 2. 链上公开可验（Available 徽章，浏览器即可，无需本机任何环境）
 
