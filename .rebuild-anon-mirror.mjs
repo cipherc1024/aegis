@@ -47,8 +47,13 @@ const SCRUBS = [
   // 匿名镜像自身地址同样是可关联句柄，文档中的裸 URL 一并抹掉
   [/cipherCN\/monad/g, "<anonymous-artifact-mirror>"],
 ];
-// 兜底：任何残留的 C:/Users/12190 或 C:\Users\12190 一律报错
-const LEAK = /C:[\\/]Users[\\/]12190/;
+// 兜底：任何残留的 C:/Users/12190 或 C:\Users\12190 一律报错。
+// ⚠️ 这里必须容忍**重复转义的反斜杠**：JSON.stringify 会把 `\` 写成 `\\`，
+// 于是 JSON 产物里字面存的是 `C:\\Users\\12190`。若模式只写 `[\\/]`（匹配单个
+// `\` 或 `/`），JSON 里的双反斜杠就永远匹配不到——守卫会静默打印"✅ 无残留"，
+// 而真实用户名已经随产物发布出去（2026-09-22 实测踩中：crossmachine-2of2-attestation.json）。
+// 故用 `[\\/]+` 吞掉任意层数的转义斜杠，并对 `12190` 单独再兜一层。
+const LEAK = /C:[\\/]+Users[\\/]+12190|Users[\\/]+12190|\bDESKTOP-DT6GK2M\b/;
 // 身份线索兜底。
 // 注意：aegis-dev 是镜像自身的**中性提交身份**（git user.name），文档中必须保留，
 // 不得列为泄露——否则重建会因自身合法内容 exit 1。（它是本机 git user.name 的子串，

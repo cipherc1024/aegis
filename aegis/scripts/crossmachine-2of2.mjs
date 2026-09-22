@@ -120,7 +120,11 @@ const attestation = {
   experiment: "crossmachine-2of2-rehearsal (single-host transfer)",
   date: new Date().toISOString(),
   honestLabel: "SINGLE-HOST TRANSFER REHEARSAL; true cross-machine = run printed SECOND HOST steps on another machine",
-  host: { hostname: os.hostname(), platform: os.platform(), arch: os.arch(), node: process.version, tmp: os.tmpdir() },
+  // 默认落盘证明**不得**含主机身份——本文件随产物公开发布，hostname 与 tmp 路径
+  // 会带出真实用户名。设 AEGIS_ATTEST_HOST=1 才记录，用于本地存档。
+  host: process.env.AEGIS_ATTEST_HOST === "1"
+    ? { hostname: os.hostname(), platform: os.platform(), arch: os.arch(), node: process.version, tmp: os.tmpdir() }
+    : { hostname: "<redacted>", platform: os.platform(), arch: os.arch(), node: process.version, tmp: "<redacted>" },
   challengerCopy: {
     files: copied,
     depResolution: depLink,

@@ -3,11 +3,11 @@
   "date": "2026-09-18T16:10:07.034Z",
   "honestLabel": "SINGLE-HOST TRANSFER REHEARSAL; true cross-machine = run printed SECOND HOST steps on another machine",
   "host": {
-    "hostname": "DESKTOP-DT6GK2M",
+    "hostname": "<redacted>",
     "platform": "win32",
     "arch": "x64",
     "node": "v24.18.0",
-    "tmp": "C:\\Users\\12190\\AppData\\Local\\Temp"
+    "tmp": "<redacted>"
   },
   "challengerCopy": {
     "files": [
