@@ -1,0 +1,3 @@
+@echo off
+cd /d "%~dp0"
+powershell -NoExit -ExecutionPolicy Bypass -NoProfile -Command "Set-Location -LiteralPath '%~dp0'; Write-Host '=== Aegis proposer one-click join challenger (FIRST machine) ===' -ForegroundColor Cyan; Write-Host ('dir: ' + (Get-Location)); if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Write-Host '[ERROR] node not found. Install Node.js LTS: https://nodejs.org/en/download' -ForegroundColor Red; Start-Process 'https://nodejs.org/en/download' } else { node .\scripts\setup-proposer-for-challenger.mjs }; Write-Host ''; Write-Host '--- window stays open (-NoExit). ---' -ForegroundColor Yellow"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useL, useLink } from "@/lib/i18n";
 import { useOrch } from "@/lib/useOrch";
 import { api, type AegisConfig, type LiveStatus } from "@/lib/aegis";
+import { SNAPSHOT_DEVICES } from "@/lib/snapshot";
 import { shortAddr } from "@/lib/mock";
 import {
   ShieldCheck,
@@ -293,11 +294,8 @@ export default function LandingPage() {
   );
 }
 
-const FALLBACK_DEVICES = [
-  { role: "proposer", name: "Proposer 机器", holds: ["MONAD_TESTNET_PK"], note: "双 LLM 管线 + 确定性 δ 预览；持有 TEE 私钥，可提交收据" },
-  { role: "challenger", name: "Challenger 机器（独立）", holds: ["CHALLENGER_PK"], note: "独立钱包上链 validation；verify.mjs 只依赖 ethers + 自己的 objective.mjs（单向零依赖）；可选跨家族模型层默认关闭（非 L5，L5 专指目标层）" },
-  { role: "tee", name: "Phala CVM（TDX）", holds: [], note: "实时生成绑定 digest 的 TDX quote，链上 DCAP 验真" },
-];
+// 缺省设备文本与 /architecture 共用一份（lib/snapshot.ts），避免两页漂移
+const FALLBACK_DEVICES = SNAPSHOT_DEVICES;
 
 function LiveCard({
   icon,

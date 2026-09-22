@@ -118,10 +118,29 @@ export interface CommandResult {
   gasUsed?: string;
   submitPath?: string;
   newLastReceiptHash?: string;
+  // dry-run 也会真实算出收据字段（只是不写链），实测 /api/agent/command?dryRun=true 回包：
+  // executionHash/pdrHash/semantic/prev/onChainGuardrail。此前页面靠 `(cmdr as {…})` 逐字段
+  // 强转才读得到，现按实测回包补进类型，去掉这些强转。
+  executionHash?: string;
+  pdrHash?: string;
+  semantic?: string;
+  prev?: string;
+  onChainGuardrail?: string;
+  hasSigner?: boolean;
   quote?: { bytes: number };
   transcriptHash?: string;
   llm?: unknown;
-  challenger?: { agree: boolean | null; response: number; layers?: unknown[]; mismatches?: unknown[]; note?: string };
+  // layers 是**对象**（{"1_policy":"pass",…}），不是数组 —— 实测 /api/agent/command
+  // 的 dry-run 回包确认；此处原写作 unknown[]，与 /api/verify 的 VerifyResponse.challenger.layers
+  // 口径不一致。当前无消费者读它（页面只读 agree/response），故改正是消除漂移而非修 bug。
+  challenger?: {
+    agree: boolean | null;
+    response: number;
+    layers?: Record<string, string>;
+    mismatches?: unknown[];
+    note?: string;
+    attestedGuardrailHash?: string;
+  };
   execution?: { status: string; txHash?: string; vaultBalance?: string; challengerResponse?: number; waitedMs?: number; error?: string };
 }
 

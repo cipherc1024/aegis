@@ -7,11 +7,15 @@
 > 诚实前提：默认路径**单工作站零 gas**（离线 harness）；链上与 live LLM 项为可选档，见 §4/§5。
 
 **固定 commit（Available 徽章锚点）**：匿名镜像
-`https://github.com/cipherCN/monad`，tag **`artifact-anon-2026-09-17`**。
+`https://github.com/<anonymous-artifact-mirror>`，tag **`artifact-anon-2026-09-21`**。
 **论文引用一律写仓库 URL + tag 名，不写裸 sha**（镜像 tag 曾因文档修正重打过，裸 sha 会漂；
-固定 sha 以 tag 解析为准：`git rev-parse artifact-anon-2026-09-17`）。该镜像提交身份全为中性占位符
+固定 sha 以 tag 解析为准：`git rev-parse artifact-anon-2026-09-21`）。该镜像提交身份全为中性占位符
 `aegis-dev <aegis@local>`，不含作者身份信息；本地开发仓 `Monad量化` 为私有仓，
 **其地址不得写入论文**（双盲）。镜像内 `aegis/ARTIFACT.md` 即本文件的对等版本（内容一致，仅锚点段不同）。
+
+> **旧 tag 说明**：`artifact-anon-2026-09-17` / `artifact-anon-2026-09-18` 为历史版本，分别早于
+> v5 金库重部署与 in-TEE CVM E2E 证据同步——**其中的文档指向已废弃的 v4 金库地址、合约源码不含
+> v5 的 `setReceiptRegistry`**。复现请一律使用 `artifact-anon-2026-09-21`。
 
 ## 0. 环境要求
 
@@ -19,6 +23,9 @@
 - 合约编译：`npx hardhat compile`（**evm target 必须 paris**——Monad MCOPY 行为不正确，见 README"Monad 特性实测"）
 - 图与 bond 数值（论文侧，可选）：Python 3.10+，matplotlib + numpy（脚本在论文仓 `figs/`，投稿打包时随 artifact 一并收录）
 - 不需要任何 API key 即可跑完 §1 全部（LLM 走 mock 降级，如实标注 mode=mock）
+- **唯一需要的一个环境变量是 `SOA_USER_PK`**（第 6 行 `soa-demo` 用；「用户」角色签名私钥，
+  无资金、不上链）。`.env.example` 已内置一个**公开测试密钥**，直接
+  `cp .env.example .env` 即可复现；不设它会以 exit 1 明确报缺（不会静默跳过）。
 
 ## 1. 一键零 gas 复现（Functional 徽章主体）
 

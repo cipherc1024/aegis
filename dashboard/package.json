@@ -5,19 +5,18 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:export": "node scripts/build-export.mjs",
     "start": "next start",
+    "start:export": "node scripts/serve-export.mjs",
     "lint": "next lint"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.102.8",
     "framer-motion": "^13.2.0",
     "lucide-react": "^1.45.0",
     "next": "14.2.35",
-    "next-intl": "^4.14.4",
     "react": "^18",
     "react-dom": "^18",
     "viem": "^2.56.3",
-    "wagmi": "^3.7.7",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useL } from "@/lib/i18n";
 import { useOrch } from "@/lib/useOrch";
 import { api, type AegisConfig, type LiveStatus } from "@/lib/aegis";
+import { SNAPSHOT_CONTRACTS, SNAPSHOT_DEVICES } from "@/lib/snapshot";
 import { shortAddr } from "@/lib/mock";
 
 import {
@@ -46,10 +47,14 @@ const NEGATIVES: { zh: string; en: string; c: string; m: string; expect: string;
 
 export default function ArchitecturePage() {
   const L = useL();
-  const { data: cfg } = useOrch<AegisConfig>(() => api.config(), [], 30_000);
+  const { data: cfg, fetched: cfgFetched } = useOrch<AegisConfig>(() => api.config(), [], 30_000);
   const { data: st } = useOrch<LiveStatus>(() => api.status(), [], 6_000);
 
   const live = Boolean(st?.online);
+  // 拉过一次但仍为 null = orchestrator 不可达（不是"还在读"）。静态导出下恒为 true，
+  // 页面因此显示缺省值并标注来源，而不是把整块留白。
+  const offline = cfgFetched && !cfg;
+  const devices = cfg?.trustBoundary.devices ?? SNAPSHOT_DEVICES;
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -63,14 +68,35 @@ export default function ArchitecturePage() {
         </p>
       </div>
 
+      {/* 静态导出模式说明：只在拿不到 orchestrator 时出现，且明确标出哪几块是缺省值 */}
+      {offline ? (
+        <div className="card flex items-start gap-3 border-amber/40 p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
+          <div className="text-xs leading-relaxed text-secondary">
+            <div className="mb-1 text-sm text-primary">
+              {L("静态导出模式：读不到 orchestrator", "Static export: orchestrator unreachable")}
+            </div>
+            {L(
+              "本页是纯静态构建（无服务端、无 /orch 代理）。下方「信任边界」卡片与合约地址显示的是缺省常量——它们来自已部署且链上核实过的地址，不是实时读数；「链路实况」与「模型」栏在离线时显示「—」。要看到实时读数，需要本机跑起 orchestrator（见 README 运行步骤）。",
+              "This page is a pure static build (no server, no /orch proxy). The trust-boundary cards and contract addresses below show fallback constants — taken from deployed, on-chain-verified addresses, not live reads. Live chain/model rows show — while offline. To see live values, run the orchestrator locally (see README)."
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {/* 信任边界 */}
       <div className="card p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium">
           <ShieldCheck className="h-4 w-4 text-cyan" />
           {L("信任边界：谁握着什么", "Trust boundary: who holds what")}
+          {offline ? (
+            <span className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[9px] text-amber">
+              {L("缺省常量", "fallback constants")}
+            </span>
+          ) : null}
         </div>
         <div className="grid gap-3 md:grid-cols-3">
-          {(cfg?.trustBoundary.devices ?? []).map((d) => (
+          {devices.map((d) => (
             <div key={d.role} className="rounded-lg border border-border-base bg-input p-3">
               <div className="text-sm">{d.name}</div>
               <div className="mono mt-1 text-[10px] text-muted">{d.role}</div>
@@ -88,7 +114,6 @@ export default function ArchitecturePage() {
               </div>
             </div>
           ))}
-          {!cfg ? <div className="text-[11px] text-muted">{L("orchestrator 离线", "orchestrator offline")}</div> : null}
         </div>
       </div>
 
@@ -164,6 +189,11 @@ export default function ArchitecturePage() {
           <div className="mb-3 flex items-center gap-2 text-sm font-medium">
             <Cpu className="h-4 w-4 text-purple" />
             {L("模型与地址（来自 /api/config）", "Models and addresses (from /api/config)")}
+            {offline ? (
+              <span className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[9px] text-amber">
+                {L("地址为缺省常量", "addresses are fallback constants")}
+              </span>
+            ) : null}
           </div>
           <div className="space-y-1 text-xs">
             <KV k={L("模式", "mode")} v={st?.llm.mode ?? "—"} tone={st?.llm.mode === "live" ? "text-green" : "text-muted"} />
@@ -174,9 +204,21 @@ export default function ArchitecturePage() {
               v={st ? String(st.llm.crossFamily) : "—"}
               tone={st?.llm.crossFamily ? "text-purple" : "text-amber"}
             />
-            <KV k="ReceiptRegistry" v={cfg ? shortAddr(cfg.contracts.receiptRegistry) : "—"} link={cfg ? `https://testnet.monadexplorer.com/address/${cfg.contracts.receiptRegistry}` : undefined} />
-            <KV k="AegisVaultQuorum" v={cfg?.contracts.vaultQuorum ? shortAddr(cfg.contracts.vaultQuorum) : "—"} link={cfg?.contracts.vaultQuorum ? `https://testnet.monadexplorer.com/address/${cfg.contracts.vaultQuorum}` : undefined} />
-            <KV k="ValidationRegistry" v={cfg?.contracts.validationRegistry ? shortAddr(cfg.contracts.validationRegistry) : "—"} link={cfg?.contracts.validationRegistry ? `https://testnet.monadexplorer.com/address/${cfg.contracts.validationRegistry}` : undefined} />
+            {(() => {
+              // 地址：实时优先，离线回退缺省常量（回退时上方有"缺省常量"标注）。
+              // 链上核实：registry 0x4622D041… / vault 0x3aBbb284…(codeLen 5702) /
+              // validation 0x8b96a09e…(codeLen 3523)，均非猜测值。
+              const reg = cfg?.contracts.receiptRegistry ?? SNAPSHOT_CONTRACTS.receiptRegistry;
+              const vault = cfg?.contracts.vaultQuorum ?? SNAPSHOT_CONTRACTS.vaultQuorum;
+              const val = cfg?.contracts.validationRegistry ?? SNAPSHOT_CONTRACTS.validationRegistry;
+              return (
+                <>
+                  <KV k="ReceiptRegistry" v={shortAddr(reg)} link={`https://testnet.monadexplorer.com/address/${reg}`} />
+                  <KV k="AegisVaultQuorum" v={shortAddr(vault)} link={`https://testnet.monadexplorer.com/address/${vault}`} />
+                  <KV k="ValidationRegistry" v={shortAddr(val)} link={`https://testnet.monadexplorer.com/address/${val}`} />
+                </>
+              );
+            })()}
             <KV k="quote service" v={cfg?.contracts.quoteService ? L("已配置", "configured") : L("未配置", "unset")} />
           </div>
         </div>
@@ -270,7 +312,10 @@ function NegativePanel() {
         {running ? <span className="mono text-[11px] text-tertiary">{prog}/{NEGATIVES.length}</span> : null}
         {!cfg && !running ? (
           <span className="text-[11px] text-muted">
-            {L("需要 orchestrator 的 /api/config（策略目标址从哪里读）", "needs orchestrator's /api/config (source of the policy target)")}
+            {L(
+              "需要 orchestrator 的 /api/config（策略目标址从哪里读）。静态导出下本按钮不可用：11 个负例要打真实的 /api/verify，静态页面没有服务端可打。",
+              "needs orchestrator's /api/config (source of the policy target). Unavailable in the static export: the 11 negatives hit the real /api/verify, which a static page has no server to call."
+            )}
           </span>
         ) : null}
         {rows && !running ? (

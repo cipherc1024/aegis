@@ -13,6 +13,42 @@ export default function ReceiptsPage() {
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const r = receipts.find((x) => x.receiptHash === selectedHash) ?? receipts[0];
 
+  // 字段结构与 DCAP 口径**不依赖本次是否读到收据**，故定义在离线分支之前：
+  // 离线时照常渲染结构、值一律为「—」，而不是整页只剩一句"收据流离线"。
+  const rows: [string, string][] = r
+    ? [
+        [L("区块高度", "Block height"), String(r.blockHeight)],
+        [L("执行动作", "Action"), r.action],
+        [L("金额", "Amount"), r.amount && r.amount !== "0x" ? r.amount : "—"],
+        [L("执行哈希", "Execution hash"), r.executionHash && r.executionHash !== "0x" ? r.executionHash : "—"],
+        [L("nonce", "nonce"), r.nonce && r.nonce !== "0x" ? r.nonce : "—"],
+        [L("护栏哈希", "Guardrail hash"), r.guardrailHash && r.guardrailHash !== "0x" ? r.guardrailHash : "—"],
+        [L("前序收据", "Prev receipt"), r.prevReceiptHash && r.prevReceiptHash !== "0x" ? r.prevReceiptHash : "—"],
+        [L("收据哈希", "Receipt hash"), r.receiptHash],
+        [L("交易哈希", "Tx hash"), r.txHash ?? "—"],
+      ]
+    : [
+        [L("区块高度", "Block height"), "—"],
+        [L("执行动作", "Action"), "—"],
+        [L("金额", "Amount"), "—"],
+        [L("执行哈希", "Execution hash"), "—"],
+        [L("nonce", "nonce"), "—"],
+        [L("护栏哈希", "Guardrail hash"), "—"],
+        [L("前序收据", "Prev receipt"), "—"],
+        [L("收据哈希", "Receipt hash"), "—"],
+        [L("交易哈希", "Tx hash"), "—"],
+      ];
+
+  // DCAP 面板只展示"本页真的读到了什么"。FMSPC / TCB Level / Quote 版本属于
+  // quote 工件内部字段，前端没有解析能力（也不该假装有），一律显示"未解析"，
+  // 真值请用 scripts/verify-quote.mjs 复验原始 quote。
+  const dcap: [string, string][] = [
+    [L("Quote 类型", "Quote type"), L("未解析（见 verifier）", "not parsed (see verifier)")],
+    ["FMSPC", L("未解析（见 verifier）", "not parsed (see verifier)")],
+    ["TCB Status", L("未解析（见 verifier）", "not parsed (see verifier)")],
+    [L("收据摘要", "Receipt digest"), r ? shortHash(r.receiptHash) : "—"],
+  ];
+
   if (!r) {
     // 还在取数 ≠ 离线。富事件路径要串行扫 40 个 100 块的窗口（实测 ~30s），
     // 此前这里在等待期间就直接显示"离线"，把"正在查"误报成"系统没在工作"。
@@ -31,40 +67,95 @@ export default function ReceiptsPage() {
       );
     }
     return (
-      <div className="card flex flex-col items-center gap-2 p-10 text-center">
-        <Radio className="h-5 w-5 text-muted" />
-        <div className="text-sm text-secondary">{L("收据流离线", "Receipt stream offline")}</div>
-        <div className="max-w-md text-xs text-tertiary">
-          {L(
-            "本页只显示真实链上收据（orchestrator 索引器产物）。索引器未运行或不可达时，这里不会显示任何占位数据。",
-            "This page only shows real on-chain receipts (produced by the orchestrator's indexer). When the indexer isn't running or is unreachable, no placeholder data is shown here."
-          )}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr]">
+        <div className="card p-3">
+          <div className="mb-2 flex items-center gap-2 px-1 text-sm">
+            {L("收据列表", "Receipts")}
+            <span className="ml-auto flex items-center gap-1 rounded-md bg-input px-1.5 py-0.5 text-[10px] text-muted">
+              <Radio className="h-2.5 w-2.5" />
+              {L("离线", "offline")}
+            </span>
+          </div>
+          <div className="px-1 py-2 text-xs text-tertiary">
+            {L("索引器未运行或不可达，列表为空。", "Indexer not running or unreachable — list is empty.")}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="card flex items-start gap-2 border-amber/40 p-4">
+            <Radio className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
+            <div className="min-w-0">
+              <div className="text-sm text-amber">{L("收据流离线", "Receipt stream offline")}</div>
+              <div className="mt-1 text-[11px] leading-relaxed text-tertiary">
+                {L(
+                  "本页只显示真实链上收据（orchestrator 索引器产物）。索引器未运行或不可达时，这里不会显示任何占位数据 —— 下方字段结构照常给出，值一律为「—」。",
+                  "This page only shows real on-chain receipts (produced by the orchestrator's indexer). When the indexer isn't running or is unreachable, no placeholder data is shown — the field structure below is still listed, with every value as \"—\"."
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-medium">
+                {L("收据摘要", "Receipt summary")} · <span className="mono text-muted">#—</span>
+              </div>
+              <Link
+                href="/verify"
+                className="rounded-lg border border-cyan/40 bg-cyan/5 px-3 py-1.5 text-xs font-medium text-cyan hover:bg-cyan/10"
+              >
+                {L("独立验证最新收据", "Independently verify")}
+              </Link>
+            </div>
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
+              {rows.map(([k, v]) => (
+                <div key={k} className="flex items-center justify-between gap-3 border-b border-border-subtle py-1.5">
+                  <dt className="text-muted">{k}</dt>
+                  <dd className="mono truncate text-secondary">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-3 text-[11px] text-tertiary">
+              {L(
+                "哈希字段由浏览器直接读链上 ReceiptSubmitted 事件（最近若干块窗口）；「—」表示该字段不在当前数据来源里，请以区块浏览器为准。本页不显示任何推算值。",
+                "Hash fields are read in-browser directly from the on-chain ReceiptSubmitted event (recent block window). \"—\" means the field is absent from the current source; treat the block explorer as authoritative. This page never shows imputed values."
+              )}
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+              <Lock className="h-4 w-4 text-cyan" />
+              {L("DCAP 验证", "DCAP verification")}
+            </div>
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
+              {dcap.map(([k, v]) => (
+                <div key={k} className="flex items-center justify-between gap-3 border-b border-border-subtle py-1.5">
+                  <dt className="text-muted">{k}</dt>
+                  <dd className="mono text-secondary">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-3 rounded-lg bg-green/5 px-3 py-2 text-xs text-green">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {L(
+                  "收据存在即代表链上 DCAP 验真通过：submitReceiptWithQuote 在合约内强制验 Intel TDX quote",
+                  "A stored receipt implies on-chain DCAP passed: submitReceiptWithQuote enforces the Intel TDX quote inside the contract"
+                )}
+              </div>
+              <div className="mt-1 text-[11px] leading-relaxed text-tertiary">
+                {L(
+                  "当前没有读到收据，故此断言无可核对象；DCAP 面板的「未解析」与该断言都不是本页的推算结果。",
+                  "No receipt is read right now, so this assertion has nothing to apply to; neither the \"not parsed\" rows nor this assertion is an inference made by this page."
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
-
-  const rows: [string, string][] = [
-    [L("区块高度", "Block height"), String(r.blockHeight)],
-    [L("执行动作", "Action"), r.action],
-    [L("金额", "Amount"), r.amount ?? "—"],
-    [L("执行哈希", "Execution hash"), r.executionHash],
-    [L("nonce", "nonce"), r.nonce],
-    [L("护栏哈希", "Guardrail hash"), r.guardrailHash],
-    [L("前序收据", "Prev receipt"), r.prevReceiptHash],
-    [L("收据哈希", "Receipt hash"), r.receiptHash],
-    [L("交易哈希", "Tx hash"), r.txHash ?? "—"],
-  ];
-
-  // DCAP 面板只展示"本页真的读到了什么"。FMSPC / TCB Level / Quote 版本属于
-  // quote 工件内部字段，前端没有解析能力（也不该假装有），一律显示"未解析"，
-  // 真值请用 scripts/verify-quote.mjs 复验原始 quote。
-  const dcap: [string, string][] = [
-    [L("Quote 类型", "Quote type"), L("未解析（见 verifier）", "not parsed (see verifier)")],
-    ["FMSPC", L("未解析（见 verifier）", "not parsed (see verifier)")],
-    ["TCB Status", L("未解析（见 verifier）", "not parsed (see verifier)")],
-    [L("收据摘要", "Receipt digest"), shortHash(r.receiptHash)],
-  ];
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr]">

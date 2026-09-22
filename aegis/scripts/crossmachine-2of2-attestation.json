@@ -1,0 +1,73 @@
+{
+  "experiment": "crossmachine-2of2-rehearsal (single-host transfer)",
+  "date": "2026-09-18T16:10:07.034Z",
+  "honestLabel": "SINGLE-HOST TRANSFER REHEARSAL; true cross-machine = run printed SECOND HOST steps on another machine",
+  "host": {
+    "hostname": "DESKTOP-DT6GK2M",
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.18.0",
+    "tmp": "C:\\Users\\12190\\AppData\\Local\\Temp"
+  },
+  "challengerCopy": {
+    "files": [
+      "README.md",
+      ".env.example",
+      "package.json",
+      "challenger-policy.json",
+      "verify.mjs",
+      "objective.mjs",
+      "selftest.mjs",
+      "gen-key.mjs",
+      "challenger-agent.mjs",
+      "input-commitment.mjs",
+      "policy-attest.mjs",
+      "challenger-state.json"
+    ],
+    "depResolution": "junction -> repo/node_modules",
+    "sha256": {
+      "verify.mjs": "b7ea38171f64f184e4bb708c298de3fa7da8c1803197617c2762a71540421bba",
+      "objective.mjs": "d8ffcb702b9812745d5bcdefa57210417d94043fb07d28111946a991f95a89f2"
+    }
+  },
+  "selftest": {
+    "pass": true,
+    "exit": 0,
+    "tail": "PASS  16 beyond signed max -> objective_exceeds_max  | challenger_objective_reject:objective_exceeds_max,challenger_objective_reject:objective_not_eps_optimal:dev=20000000000000000 | PASS  17 objective desired > policy limit -> objective_unsatisfiable  | challenger_objective_reject:objective_unsatisfiable,challenger_objective_reject:objective_not_eps_optimal:dev=10000000000000000 | selftest: 17 pass / 0 fail"
+  },
+  "independentDecision": {
+    "challenger_user": "0x437c1fA868c740dFfd2d6f0caD7069e4e94A71A0",
+    "honest": {
+      "agree": true,
+      "response": 100,
+      "layers": {
+        "1_policy": "pass",
+        "2_guardrail": "pass",
+        "3_pace": "pass(daily skipped)",
+        "4_arithmetic": "pass",
+        "5_objective": "pass"
+      },
+      "mismatches": []
+    },
+    "drift": {
+      "agree": false,
+      "response": 0,
+      "layers": {
+        "1_policy": "pass",
+        "2_guardrail": "pass",
+        "3_pace": "pass(daily skipped)",
+        "4_arithmetic": "pass",
+        "5_objective": "fail:objective_not_eps_optimal:dev=10000000000000000"
+      },
+      "mismatches": [
+        "challenger_objective_reject:objective_not_eps_optimal:dev=10000000000000000"
+      ]
+    }
+  },
+  "checks": {
+    "selftest17": true,
+    "honestAccept100": true,
+    "driftReject0": true,
+    "twoProcsTwoWallets": true
+  }
+}

@@ -47,7 +47,15 @@ export default function VaultsPage() {
       {!st && !loading && (
         <div className="mb-4 flex items-start gap-2 rounded-md border border-amber/40 bg-amber/5 p-3 text-xs text-amber">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {L("orchestrator 不可达，读不到金库清单。", "orchestrator unreachable — cannot read the vault list.")}
+          <div>
+            {L("orchestrator 不可达，读不到金库清单。", "orchestrator unreachable — cannot read the vault list.")}
+            <div className="mt-1 text-[11px] leading-relaxed text-tertiary">
+              {L(
+                "清单本身是链上直读的结果，不在本页缓存。下面的口径说明仍然成立：它讲的是这个清单为何长这样，与本次 RPC 读有没有成功无关。",
+                "The list itself is read straight from chain and is not cached on this page. The explanation below still holds: it explains why the list has this shape, independent of whether this RPC read succeeded.",
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -58,15 +66,17 @@ export default function VaultsPage() {
         </div>
       )}
 
+      {/* 结构说明与扫描口径：与"这次读没读到"无关，离线也照常渲染，
+          否则页面离线时就只剩标题 + 一个刷新按钮。 */}
+      <div className="mb-4 rounded-md border border-border-subtle bg-input p-3 text-[11px] leading-relaxed text-tertiary">
+        {L(
+          "AegisVaultQuorum 的 agentId 是 immutable —— 一个金库只服务一个 agent。因此本清单的行数 = 已部署的金库数，而不是产品目录里的可选策略数。每个 agent 的「策略」是它自己的 challenger 策略文件，见策略编辑器。",
+          "AegisVaultQuorum's agentId is immutable — one vault serves exactly one agent. So this list has as many rows as there are deployed vaults, not curated strategies. Each agent's strategy is its own challenger policy file (see Policy Editor)."
+        )}
+      </div>
+
       {st && (
         <>
-          <div className="mb-4 rounded-md border border-border-subtle bg-input p-3 text-[11px] leading-relaxed text-tertiary">
-            {L(
-              "AegisVaultQuorum 的 agentId 是 immutable —— 一个金库只服务一个 agent。因此本清单的行数 = 已部署的金库数，而不是产品目录里的可选策略数。每个 agent 的「策略」是它自己的 challenger 策略文件，见策略编辑器。",
-              "AegisVaultQuorum's agentId is immutable — one vault serves exactly one agent. So this list has as many rows as there are deployed vaults, not curated strategies. Each agent's strategy is its own challenger policy file (see Policy Editor)."
-            )}
-          </div>
-
           <div className="space-y-3">
             {st.vaults.length === 0 && (
               <div className="card p-5 text-xs text-muted">

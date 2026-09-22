@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useL, useLink } from "@/lib/i18n";
 import { useOrch } from "@/lib/useOrch";
 import { api, type AegisConfig, type CommandResult, type PipelinePreview, type VerifyResponse } from "@/lib/aegis";
+import { REPLAY_SAMPLES, type ReplaySample } from "@/lib/replay";
 import {
   Play,
   Loader2,
@@ -16,6 +17,7 @@ import {
   Cpu,
   Link2,
   ArrowDown,
+  History,
 } from "lucide-react";
 
 const PRESETS = [
@@ -60,6 +62,10 @@ export default function TryPage() {
   const [cmdr, setCmdr] = useState<CommandResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
+  /** 最近一次点选的预设（en 名）；用于离线时挑对应回放样例 */
+  const [presetEn, setPresetEn] = useState<string | null>(null);
+  /** 当前展示的是回放样例而非本次运行结果 */
+  const [replay, setReplay] = useState<ReplaySample | null>(null);
 
   const run = async () => {
     setRunning(true);
@@ -68,6 +74,8 @@ export default function TryPage() {
     setVer(null);
     setCmdr(null);
     setElapsed(null);
+    // 主动跑真实的一笔时必须清掉回放，否则回放结果会盖在真实结果上
+    setReplay(null);
     const t0 = Date.now();
     try {
       // 1) 双 LLM 管线的只读预览：模型提出了什么（不可信输入）
@@ -113,8 +121,32 @@ export default function TryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const deltaReject = pipe?.deltaVerdict === "reject" || ver?.proposer?.verdict === "reject";
-  const refusedByModel = pipe?.kind === "refuse";
+  // 离线回退：后端不可达时，用**实测捕获的回放样例**把三段结构补齐，
+  // 而不是留一个不能提交的空表单。回放必须显式标注来源（见下方横幅）。
+  const shown: { pipe: PipelinePreview | null; ver: VerifyResponse | null; cmdr: CommandResult | null } = replay
+    ? { pipe: replay.pipeline, ver: replay.verify, cmdr: replay.command }
+    : { pipe, ver, cmdr };
+  const deltaReject = shown.pipe?.deltaVerdict === "reject" || shown.ver?.proposer?.verdict === "reject";
+  const refusedByModel = shown.pipe?.kind === "refuse";
+  /** 展示的是回放（而非本次真实调用结果） */
+  const isReplay = replay !== null;
+  const showReplay = (p: ReplaySample | null): void => {
+    setReplay(p);
+    setError(null);
+  };
+  const replayCases = Object.values(REPLAY_SAMPLES);
+
+  // orchestrator 不可达（或模型超时）时，若当前场景有对应的实测回放，自动摆出来。
+  // 只做"摆样例"，不碰输入框、不改错误提示；用户点「运行」重试时 run() 会清掉它。
+  // 匹配按**输入内容**而不是点过哪个预设按钮：预设与「运行」在同一 tick 里被点时，
+  // presetEn 还来不及进 state，只有 cmd/md 是准的。
+  const offline = !pipe && !running && !!error;
+  useEffect(() => {
+    if (!offline) return;
+    const sample = replayCases.find((s) => s.pipeline.command === cmd && s.pipeline.marketData === md);
+    if (sample && sample.key !== replay?.key) setReplay(sample);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offline, cmd, md]);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -159,8 +191,14 @@ export default function TryPage() {
               onClick={() => {
                 setCommand(p.c);
                 setMarketData(p.m);
+                setPresetEn(p.en);
+                // 点预设即视为换场景：清掉上一份回放，避免旧场景的结果留在屏上
+                setReplay(null);
+                setError(null);
               }}
-              className="rounded-lg border border-border-base px-3 py-1.5 text-[11px] text-secondary hover:border-border-hover"
+              className={`rounded-lg border px-3 py-1.5 text-[11px] transition-colors ${
+                presetEn === p.en ? "border-cyan/50 bg-cyan/5 text-cyan" : "border-border-base text-secondary hover:border-border-hover"
+              }`}
             >
               {L(p.zh, p.en)}
             </button>
@@ -190,12 +228,68 @@ export default function TryPage() {
       {error ? (
         <div className="card mt-4 flex items-start gap-2 border-red/40 p-4 text-sm text-red">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+          <div className="min-w-0">
+            <div>{error}</div>
+            {/* orchestrator 不在线时给出可读的三段结构：用实测捕获的回放补齐，
+                并明确标注来源。这不是"降级成假数据"——每个字节都来自一次真实运行。 */}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-tertiary">
+                {L("后端不在线，可先看实测回放：", "Backend offline — you can inspect a captured replay:")}
+              </span>
+              {replayCases.map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => showReplay(s)}
+                  className="rounded-lg border border-border-base px-2.5 py-1 text-[11px] text-secondary hover:border-border-hover"
+                >
+                  {L(s.zh, s.en)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isReplay && replay ? (
+        <div className="card mt-4 border-amber/40 p-4">
+          <div className="flex flex-wrap items-start gap-2">
+            <History className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-amber">
+                {L("这是回放样例，不是本次运行的结果", "This is a captured replay, not the result of this run")}
+              </div>
+              <div className="mt-1 text-[11px] leading-relaxed text-tertiary">
+                {L(
+                  `下方三段内容逐字节来自一次真实运行（${replay.capturedAt}，mode=live），未做任何改写或补全。差异只有一个：本次由 orchestrator 现算，回放是把那次现算的结果原样呈现。点「运行」会用你当前的输入真的跑一遍。`,
+                  `All three sections below are byte-for-byte from a real run (${replay.capturedAt}, mode=live), with nothing rewritten or filled in. The only difference: a live run computes it now; the replay shows what that run computed. Press Run to actually execute your current input.`
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {replayCases.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => showReplay(s)}
+                className={`rounded-lg border px-2.5 py-1 text-[11px] ${
+                  replay.key === s.key ? "border-amber/50 bg-amber/5 text-amber" : "border-border-base text-secondary hover:border-border-hover"
+                }`}
+              >
+                {L(s.zh, s.en)}
+              </button>
+            ))}
+            <button
+              onClick={() => showReplay(null)}
+              className="rounded-lg border border-cyan/50 bg-cyan/5 px-2.5 py-1 text-[11px] text-cyan hover:opacity-90"
+            >
+              {L("关闭回放", "Close replay")}
+            </button>
+          </div>
         </div>
       ) : null}
 
       {/* 结果 */}
-      {pipe ? (
+      {shown.pipe ? (
         <div className="mt-4 space-y-4">
           {/* 总判决横幅 */}
           <div
@@ -218,8 +312,8 @@ export default function TryPage() {
               </div>
               <div className="mono mt-0.5 truncate text-[11px] text-tertiary">
                 {refusedByModel
-                  ? `${pipe.stage} · ${pipe.reason}`
-                  : `guardrail=[${(ver?.proposer?.guardrail ?? pipe.guardrail ?? []).join(", ")}] pace=${(ver?.proposer?.pace ?? pipe.pace) ?? "null"}`}
+                  ? `${shown.pipe?.stage} · ${shown.pipe?.reason}`
+                  : `guardrail=[${(shown.ver?.proposer?.guardrail ?? shown.pipe?.guardrail ?? []).join(", ")}] pace=${(shown.ver?.proposer?.pace ?? shown.pipe?.pace) ?? "null"}`}
               </div>
             </div>
           </div>
@@ -228,11 +322,11 @@ export default function TryPage() {
           <Step
             icon={<Cpu className="h-4 w-4 text-purple" />}
             title={L("① 双 LLM 管线输出（不可信输入，仅供参考）", "① Dual-LLM pipeline output (untrusted input, for reference only)")}
-            badge={pipe.llm.mode === "live" ? `${pipe.llm.model} → ${pipe.llm.challengerModel ?? "—"}` : "mock"}
+            badge={shown.pipe.llm.mode === "live" ? `${shown.pipe.llm.model} → ${shown.pipe.llm.challengerModel ?? "—"}` : "mock"}
             tone="text-purple"
           >
             <div className="space-y-2">
-              {pipe.steps.map((s, i) => (
+              {shown.pipe.steps.map((s, i) => (
                 <div key={i} className="rounded-lg bg-input px-3 py-2">
                   <div className="mono text-[10px] text-muted">{s.stage}</div>
                   <pre className="mono mt-1 overflow-x-auto whitespace-pre-wrap break-all text-[11px] text-secondary">
@@ -240,9 +334,9 @@ export default function TryPage() {
                   </pre>
                 </div>
               ))}
-              {pipe.intent ? (
+              {shown.pipe.intent ? (
                 <div className="mono rounded-lg border border-purple/30 bg-purple/5 px-3 py-2 text-[11px] text-purple">
-                  {L("解析出的意图", "resolved intent")}: target={pipe.intent.target} amount={pipe.intent.amount} data={pipe.intent.data}
+                  {L("解析出的意图", "resolved intent")}: target={shown.pipe.intent.target} amount={shown.pipe.intent.amount} data={shown.pipe.intent.data}
                 </div>
               ) : null}
             </div>
@@ -254,36 +348,36 @@ export default function TryPage() {
           <Step
             icon={<GitCompareArrows className="h-4 w-4 text-cyan" />}
             title={L("② 确定性裁决 δ：两套独立实现，同一个结论", "② Deterministic verdict δ: two independent implementations, one conclusion")}
-            badge={ver ? (ver.agree === null ? "?" : ver.agree ? L("一致", "agree") : L("分歧", "diverged")) : ""}
-            tone={ver?.agree === false ? "text-red" : "text-cyan"}
+            badge={shown.ver ? (shown.ver.agree === null ? "?" : shown.ver.agree ? L("一致", "agree") : L("分歧", "diverged")) : ""}
+            tone={shown.ver?.agree === false ? "text-red" : "text-cyan"}
           >
             <div className="grid gap-2 md:grid-cols-2">
               <Verdict
                 name={L("proposer 预览", "proposer preview")}
-                verdict={ver?.proposer?.verdict}
-                detail={`guardrail=[${(ver?.proposer?.guardrail ?? []).join(", ")}] pace=${ver?.proposer?.pace ?? "null"}`}
+                verdict={shown.ver?.proposer?.verdict}
+                detail={`guardrail=[${(shown.ver?.proposer?.guardrail ?? []).join(", ")}] pace=${shown.ver?.proposer?.pace ?? "null"}`}
               />
               <Verdict
                 name={L("challenger 独立重推导", "challenger re-derivation")}
-                verdict={ver?.challenger?.verdict ?? null}
+                verdict={shown.ver?.challenger?.verdict ?? null}
                 detail={
                   // 管线拒绝时 challenger 为 null（δ 之前就拒了，无从重推导）
-                  !ver || !ver.challenger
+                  !shown.ver || !shown.ver.challenger
                     ? L("管线在 δ 之前拒绝，无从重推导", "pipeline refused before δ; nothing to re-derive")
-                    : ver.challenger.error
-                      ? ver.challenger.error
-                      : ver.challenger.layers
-                        ? layerSummary(ver.challenger.layers)
+                    : shown.ver.challenger.error
+                      ? shown.ver.challenger.error
+                      : shown.ver.challenger.layers
+                        ? layerSummary(shown.ver.challenger.layers)
                         : "—"
                 }
               />
             </div>
-            {ver?.challenger?.mismatches && ver.challenger.mismatches.length > 0 ? (
+            {shown.ver?.challenger?.mismatches && shown.ver.challenger.mismatches.length > 0 ? (
               <div className="mt-2 space-y-0.5">
-                {ver.challenger.mismatches.map((m, i) => {
+                {shown.ver.challenger.mismatches.map((m, i) => {
                   const s = typeof m === "string" ? m : JSON.stringify(m);
                   // 两侧结论一致时，"差异"只是记录性字段对不上，不是裁决分歧
-                  const benign = ver.agree === true;
+                  const benign = shown.ver?.agree === true;
                   return (
                     <div key={i} className={`mono text-[10px] ${benign ? "text-muted" : "text-red"}`}>
                       {benign ? L("记录差异（不影响结论）", "bookkeeping diff (verdict unaffected)") : L("不一致", "mismatch")}: {s}
@@ -306,26 +400,24 @@ export default function TryPage() {
           <Step
             icon={<Link2 className="h-4 w-4 text-amber" />}
             title={L("③ 收据字段与摘要（dry-run：真实计算，但不写链）", "③ Receipt fields and digests (dry-run: really computed, not submitted)")}
-            badge={cmdr?.decision ?? ""}
+            badge={shown.cmdr?.decision ?? ""}
             tone="text-amber"
           >
-            {cmdr ? (
+            {shown.cmdr ? (
               <div className="space-y-1">
-                <KV k="decision" v={cmdr.decision} />
-                {cmdr.reason || (cmdr as { reason?: string }).reason ? <KV k="reason" v={String(cmdr.reason)} tone="text-red" /> : null}
-                {cmdr.target ? <KV k="target" v={cmdr.target} /> : null}
-                {cmdr.amount ? <KV k="amount" v={`${cmdr.amount} (wei)`} /> : null}
-                {(cmdr as { executionHash?: string }).executionHash ? (
-                  <KV k="executionHash" v={String((cmdr as { executionHash?: string }).executionHash)} />
-                ) : null}
-                {(cmdr as { pdrHash?: string }).pdrHash ? <KV k="pdrHash" v={String((cmdr as { pdrHash?: string }).pdrHash)} /> : null}
-                {(cmdr as { semantic?: string }).semantic ? <KV k="semanticDigest" v={String((cmdr as { semantic?: string }).semantic)} /> : null}
-                {(cmdr as { prev?: string }).prev ? <KV k="prevReceiptHash" v={String((cmdr as { prev?: string }).prev)} /> : null}
-                {cmdr.challenger ? (
+                <KV k="decision" v={shown.cmdr.decision} />
+                {shown.cmdr.reason ? <KV k="reason" v={String(shown.cmdr.reason)} tone="text-red" /> : null}
+                {shown.cmdr.target ? <KV k="target" v={shown.cmdr.target} /> : null}
+                {shown.cmdr.amount ? <KV k="amount" v={`${shown.cmdr.amount} (wei)`} /> : null}
+                {shown.cmdr.executionHash ? <KV k="executionHash" v={String(shown.cmdr.executionHash)} /> : null}
+                {shown.cmdr.pdrHash ? <KV k="pdrHash" v={String(shown.cmdr.pdrHash)} /> : null}
+                {shown.cmdr.semantic ? <KV k="semanticDigest" v={String(shown.cmdr.semantic)} /> : null}
+                {shown.cmdr.prev ? <KV k="prevReceiptHash" v={String(shown.cmdr.prev)} /> : null}
+                {shown.cmdr.challenger ? (
                   <KV
                     k={L("challenger 离线预览", "challenger offline preview")}
-                    v={`agree=${cmdr.challenger.agree} response=${cmdr.challenger.response}`}
-                    tone={cmdr.challenger.agree ? "text-green" : "text-red"}
+                    v={`agree=${shown.cmdr.challenger.agree} response=${shown.cmdr.challenger.response}`}
+                    tone={shown.cmdr.challenger.agree ? "text-green" : "text-red"}
                   />
                 ) : null}
               </div>
