@@ -19,8 +19,8 @@ export function HashChain({ receipts, max = 12 }: { receipts: Receipt[]; max?: n
             <span
               className={`h-3 w-3 rounded-full transition-transform group-hover:scale-150 ${DOT[r.type]}`}
             />
-            <span className="mono mt-2 whitespace-nowrap text-[10px] text-muted">#{r.id}</span>
-            <span className="pointer-events-none absolute -top-9 hidden whitespace-nowrap rounded-md border border-border-base bg-card px-2 py-1 text-[10px] text-secondary group-hover:block">
+            <span className="mono mt-2 whitespace-nowrap text-[12px] text-muted">#{r.id}</span>
+            <span className="pointer-events-none absolute -top-9 hidden whitespace-nowrap rounded-md border border-border-base bg-card px-2 py-1 text-[12px] text-secondary group-hover:block">
               {r.action}
             </span>
           </div>

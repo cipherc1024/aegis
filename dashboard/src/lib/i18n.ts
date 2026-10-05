@@ -35,13 +35,16 @@ export const useLink = create<LinkState>((set) => ({
 // 键字典只保留真正被 t("...") 调用的条目 —— 页面绝大多数文案走 L("中文","English")
 // 内联双语，字典是历史遗留的少数几处。
 //
-// ⚠️ status.* 三个键是**动态拼接**使用的（SafetyPanel.tsx: t(`status.${status}`)），
+// ⚠️ status.* 四个键是**动态拼接**使用的（SafetyPanel.tsx: t(`status.${status}`)），
 // 静态扫描 t("literal") 找不到它们；删除会导致 UI 直接显示 "status.frozen" 原文。
 // 改本文件前必须把这两种调用形式都算上。
 const DICT: Record<string, { zh: string; en: string }> = {
   "status.ok": { zh: "正常", en: "Healthy" },
   "status.stale": { zh: "收据不新鲜", en: "Stale receipts" },
   "status.frozen": { zh: "已冻结", en: "Frozen" },
+  // 链上不可达（公共 RPC 读失败）= 读不到状态，与"读到了、状态正常"是两回事，必须分开显示。
+  // 措辞与 Sidebar 的 STATUS_META.offline 保持一致（同一个 AgentStatus 枚举的两个渲染点）。
+  "status.offline": { zh: "链上不可达", en: "Chain unreachable" },
 
   "dash.agentStatus": { zh: "Agent 状态", en: "Agent status" },
   "dash.receiptStream": { zh: "实时收据流", en: "Receipt stream" },

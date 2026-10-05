@@ -70,6 +70,12 @@ export interface ChainStatus {
   lastReceiptBlock: number;
   fresh: boolean;
   alive: boolean;
+  /**
+   * 链上 `AegisVault.tradingFrozen`。
+   * `null` = 这次没读到（该读失败绝不能让整个状态变成"链上不可达"，故单独 try/catch）。
+   * ⚠️ 只有它为 true 才叫"已冻结"；`alive === false` 只是"没有新鲜收据"（死手开关的条件已满足）。
+   */
+  frozen: boolean | null;
 }
 
 export async function getStatus(agentId: bigint): Promise<ChainStatus> {
@@ -96,15 +102,28 @@ export async function getStatus(agentId: bigint): Promise<ChainStatus> {
       }) as Promise<boolean>,
     ]);
     const blockHeight = Number(latest[4] as bigint);
+    // 金库冻结态：浏览器内直读，与上面几个读同源；失败只置 null，不拖垮整体状态。
+    let frozen: boolean | null = null;
+    try {
+      frozen = (await client.readContract({
+        address: ADDR.vaultQuorum,
+        abi: [{ name: "tradingFrozen", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] }],
+        functionName: "tradingFrozen",
+      })) as boolean;
+    } catch {
+      frozen = null;
+    }
     return {
       online: true,
       currentBlock: Number(currentBlock),
       lastReceiptBlock: blockHeight,
       fresh,
       alive,
+      frozen,
     };
   } catch {
-    return { online: false, currentBlock: 0, lastReceiptBlock: 0, fresh: false, alive: false };
+    // 整体读数失败 = 链上不可达；frozen 只能报 null（不知道），绝不假装 false
+    return { online: false, currentBlock: 0, lastReceiptBlock: 0, fresh: false, alive: false, frozen: null };
   }
 }
 

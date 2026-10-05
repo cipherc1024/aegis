@@ -16,6 +16,10 @@ export interface Receipt {
   timestamp: number;
   rejectedReason?: string;
   txHash?: string;
+  /** 出处（见 lib/aegis.ts 的 ChainReceipt 注释）；缺省 = 出处未知 */
+  source?: "indexer-cache" | "tail-scan";
+  /** 该收据所在 ReceiptRegistry 地址；与当前 registry 不一致即陈旧来源 */
+  registry?: string | null;
 }
 
 export interface Agent {

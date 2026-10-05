@@ -103,12 +103,12 @@ export default function NotificationsPage() {
     <div className="mx-auto max-w-3xl">
       <div className="mb-5 flex items-center gap-2">
         <h1 className="text-lg font-semibold">{L("通知中心", "Notifications")}</h1>
-        <span className={`ml-auto text-[11px] ${online ? "text-green" : "text-amber"}`}>
+        <span className={`ml-auto text-[12px] ${online ? "text-green" : "text-amber"}`}>
           {online ? L("链上", "on-chain") : loading ? L("读取中", "loading") : L("离线", "offline")}
         </span>
       </div>
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-border-base bg-input px-3 py-2 text-[11px] text-tertiary">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-border-base bg-input px-3 py-2 text-[12px] text-tertiary">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         {L(
           "以下条目由当前链上读数实时推导（不保留历史），每条都标注了据以判断的数值。",

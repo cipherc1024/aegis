@@ -94,5 +94,8 @@ function toView(c: ChainReceipt): Receipt {
     isHeartbeat: c.isHeartbeat,
     timestamp: Date.now(),
     txHash: c.txHash,
+    // 出处原样透传：页面据此判断"这条收据是不是当前 registry 上的"
+    source: c.source,
+    registry: c.registry ?? null,
   };
 }

@@ -5,13 +5,26 @@ import Link from "next/link";
 import { useL } from "@/lib/i18n";
 import { shortHash } from "@/lib/mock";
 import { useReceipts } from "@/lib/useReceipts";
-import { CheckCircle2, Lock, Radio } from "lucide-react";
+import { useOrch } from "@/lib/useOrch";
+import { api, type AegisConfig } from "@/lib/aegis";
+import { AlertTriangle, CheckCircle2, Lock, Radio } from "lucide-react";
 
 export default function ReceiptsPage() {
   const L = useL();
   const { receipts, live, loading } = useReceipts(1);
+  const { data: cfg } = useOrch<AegisConfig>(() => api.config(), [], 30_000);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const r = receipts.find((x) => x.receiptHash === selectedHash) ?? receipts[0];
+
+  // 陈旧来源判定（2026-10-03 加）：/api/receipts 把索引器缓存与当前尾扫合并返回，
+  // 而索引器缓存可能停在已废弃的 registry 上（实测：缓存曾在 v1 `0x91482e67…`，
+  // updatedAt 2026-09-13，而生产 registry 是 v2 `0x4622D041…`）。
+  // 判据：两侧地址都拿得到且不一致 → 陈旧。任一侧缺失一律按"出处未知"处理，
+  // 不臆断、也不隐藏（隐藏等于把废弃表的收据伪装成当前收据）。
+  const cfgRegistry = cfg?.contracts.receiptRegistry ?? null;
+  const isStale = (x: { registry?: string | null }) =>
+    Boolean(cfgRegistry && x.registry && x.registry.toLowerCase() !== cfgRegistry.toLowerCase());
+  const stale = receipts.filter(isStale);
 
   // 字段结构与 DCAP 口径**不依赖本次是否读到收据**，故定义在离线分支之前：
   // 离线时照常渲染结构、值一律为「—」，而不是整页只剩一句"收据流离线"。
@@ -71,7 +84,7 @@ export default function ReceiptsPage() {
         <div className="card p-3">
           <div className="mb-2 flex items-center gap-2 px-1 text-sm">
             {L("收据列表", "Receipts")}
-            <span className="ml-auto flex items-center gap-1 rounded-md bg-input px-1.5 py-0.5 text-[10px] text-muted">
+            <span className="ml-auto flex items-center gap-1 rounded-md bg-input px-1.5 py-0.5 text-[12px] text-muted">
               <Radio className="h-2.5 w-2.5" />
               {L("离线", "offline")}
             </span>
@@ -86,7 +99,7 @@ export default function ReceiptsPage() {
             <Radio className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
             <div className="min-w-0">
               <div className="text-sm text-amber">{L("收据流离线", "Receipt stream offline")}</div>
-              <div className="mt-1 text-[11px] leading-relaxed text-tertiary">
+              <div className="mt-1 text-[12px] leading-relaxed text-tertiary">
                 {L(
                   "本页只显示真实链上收据（orchestrator 索引器产物）。索引器未运行或不可达时，这里不会显示任何占位数据 —— 下方字段结构照常给出，值一律为「—」。",
                   "This page only shows real on-chain receipts (produced by the orchestrator's indexer). When the indexer isn't running or is unreachable, no placeholder data is shown — the field structure below is still listed, with every value as \"—\"."
@@ -115,7 +128,7 @@ export default function ReceiptsPage() {
                 </div>
               ))}
             </dl>
-            <div className="mt-3 text-[11px] text-tertiary">
+            <div className="mt-3 text-[12px] text-tertiary">
               {L(
                 "哈希字段由浏览器直接读链上 ReceiptSubmitted 事件（最近若干块窗口）；「—」表示该字段不在当前数据来源里，请以区块浏览器为准。本页不显示任何推算值。",
                 "Hash fields are read in-browser directly from the on-chain ReceiptSubmitted event (recent block window). \"—\" means the field is absent from the current source; treat the block explorer as authoritative. This page never shows imputed values."
@@ -144,7 +157,7 @@ export default function ReceiptsPage() {
                   "A stored receipt implies on-chain DCAP passed: submitReceiptWithQuote enforces the Intel TDX quote inside the contract"
                 )}
               </div>
-              <div className="mt-1 text-[11px] leading-relaxed text-tertiary">
+              <div className="mt-1 text-[12px] leading-relaxed text-tertiary">
                 {L(
                   "当前没有读到收据，故此断言无可核对象；DCAP 面板的「未解析」与该断言都不是本页的推算结果。",
                   "No receipt is read right now, so this assertion has nothing to apply to; neither the \"not parsed\" rows nor this assertion is an inference made by this page."
@@ -164,7 +177,7 @@ export default function ReceiptsPage() {
         <div className="mb-2 flex items-center gap-2 px-1 text-sm">
           {L("收据列表", "Receipts")}
           <span
-            className={`ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] ${
+            className={`ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] ${
               live ? "bg-green/10 text-green" : "bg-input text-muted"
             }`}
           >
@@ -188,6 +201,11 @@ export default function ReceiptsPage() {
               />
               <span className="mono text-muted">#{x.id}</span>
               <span className="truncate">{x.action}</span>
+              {isStale(x) ? (
+                <span className="ml-auto shrink-0 rounded border border-amber/40 bg-amber/5 px-1 py-0.5 text-[11px] text-amber">
+                  {L("旧表", "old table")}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -195,6 +213,27 @@ export default function ReceiptsPage() {
 
       {/* detail */}
       <div className="space-y-4">
+        {/* 陈旧来源告警：只在"两侧 registry 都拿得到且不一致"时出现。
+            不隐藏这些收据（隐藏＝把废弃表的收据伪装成当前收据），而是标明出处。 */}
+        {stale.length ? (
+          <div className="card flex items-start gap-2 border-amber/40 p-4">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
+            <div className="min-w-0">
+              <div className="text-sm text-amber">
+                {L(
+                  `其中 ${stale.length} 条收据来自已废弃的 ReceiptRegistry`,
+                  `${stale.length} of these receipts come from a deprecated ReceiptRegistry`
+                )}
+              </div>
+              <div className="mt-1 break-all text-[12px] leading-relaxed text-tertiary">
+                {L(
+                  `当前 registry = ${cfgRegistry}；下列收据由索引器缓存（orchestrator/receipts-cache.json）在 ${stale[0].registry} 上产生。它们不是本次部署的收据——可在区块浏览器核对交易哈希，或重跑 node scripts/index-receipts.mjs 刷新缓存。列表中标「旧表」者即此类。`,
+                  `Current registry = ${cfgRegistry}; the receipts below were indexed from ${stale[0].registry} (stale orchestrator/receipts-cache.json). They are not receipts of the current deployment — check the tx hash on the explorer, or re-run node scripts/index-receipts.mjs. Items tagged "old table" belong to this group.`
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div className="card p-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-sm font-medium">
@@ -220,12 +259,12 @@ export default function ReceiptsPage() {
               href={`https://testnet.monadexplorer.com/tx/${r.txHash}`}
               target="_blank"
               rel="noreferrer"
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border-base px-2.5 py-1.5 text-[11px] text-secondary hover:border-border-hover hover:text-primary"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border-base px-2.5 py-1.5 text-[12px] text-secondary hover:border-border-hover hover:text-primary"
             >
               {L("在区块浏览器核对这笔交易", "Verify this tx on the block explorer")} ↗
             </a>
           ) : null}
-          <div className="mt-3 text-[11px] text-tertiary">
+          <div className="mt-3 text-[12px] text-tertiary">
             {L(
               "哈希字段由浏览器直接读链上 ReceiptSubmitted 事件（最近若干块窗口）；「—」表示该字段不在当前数据来源里，请以区块浏览器为准。本页不显示任何推算值。",
               "Hash fields are read in-browser directly from the on-chain ReceiptSubmitted event (recent block window). \"—\" means the field is absent from the current source; treat the block explorer as authoritative. This page never shows imputed values."

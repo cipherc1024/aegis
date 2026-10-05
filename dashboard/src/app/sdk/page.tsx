@@ -153,7 +153,7 @@ console.log(await reg.lastReceiptHash(1n))`}
           href={`${EXPLORER}/address/${cfg.contracts.vaultQuorum}`}
           target="_blank"
           rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-cyan hover:underline"
+          className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-cyan hover:underline"
         >
           <ExternalLink className="h-3 w-3" />
           {L("金库合约已在 Tenderly 源码级公开验证（匿名可查）", "Vault contract is source-verified on Tenderly (publicly viewable)")}
@@ -185,7 +185,7 @@ function Code({ code, lang }: { code: string; lang: string }) {
             setTimeout(() => setCopied(false), 1500);
           });
         }}
-        className="absolute right-2 top-2 flex items-center gap-1 rounded-md border border-border-base bg-base px-2 py-1 text-[10px] text-tertiary hover:border-border-hover hover:text-secondary"
+        className="absolute right-2 top-2 flex items-center gap-1 rounded-md border border-border-base bg-base px-2 py-1 text-[12px] text-tertiary hover:border-border-hover hover:text-secondary"
       >
         {copied ? <Check className="h-3 w-3 text-green" /> : <Copy className="h-3 w-3" />}
         {copied ? L("已复制", "copied") : L("复制", "copy")}
@@ -193,7 +193,7 @@ function Code({ code, lang }: { code: string; lang: string }) {
       <pre className="mono overflow-x-auto rounded-lg border border-border-base bg-base p-4 text-[12px] leading-relaxed text-secondary">
         <code>{code}</code>
       </pre>
-      <span className="mono absolute bottom-2 right-3 text-[10px] text-muted">{lang}</span>
+      <span className="mono absolute bottom-2 right-3 text-[12px] text-muted">{lang}</span>
     </div>
   );
 }

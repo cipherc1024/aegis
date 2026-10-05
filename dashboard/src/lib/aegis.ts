@@ -12,6 +12,19 @@
 // 非浏览器直连用的，见 aegis/.env.example），也不把内网地址暴露给浏览器。
 export const ORCH = process.env.NEXT_PUBLIC_ORCH_ORIGIN || "/orch";
 
+/**
+ * 写端点鉴权头。orchestrator 的写面（agent/command、admin/*、agents、objective/draft）
+ * 在配了 ORCH_API_TOKEN 时要求 X-API-Token，未配则一律降级为预览。
+ *
+ * token 从构建期环境变量读入并**内联进前端产物** —— 这只有在"dashboard 与 orchestrator
+ * 同属一个部署者、且产物不公开分发"时才成立。当前用法即如此（本机运营面板）；
+ * 若要公开托管本产物，不要设置 NEXT_PUBLIC_ORCH_API_TOKEN，改用服务端代理注入。
+ */
+function authHeaders(): Record<string, string> {
+  const t = process.env.NEXT_PUBLIC_ORCH_API_TOKEN;
+  return t ? { "X-API-Token": t } : {};
+}
+
 export interface LlmMeta {
   base: string | null;
   model: string | null;
@@ -38,6 +51,14 @@ export interface LiveStatus {
   executionHash: string;
   llm: LlmMeta;
   agentId: number;
+  /**
+   * true = 服务活着，但**这一次链上读失败**（RPC 抖动），字段是最近一次成功的快照。
+   * 与"服务不可达"（get() 返回 null）是两件不同的事，UI 必须分开说——
+   * 此前 500 与不可达都被折成 null，把一次 RPC 抖动显示成了"orchestrator 未启动"。
+   */
+  degraded?: boolean;
+  /** 降级原因（ethers 的 shortMessage 等），便于排查 */
+  degradedReason?: string;
 }
 
 export interface TrustDevice {
@@ -64,7 +85,15 @@ export interface AegisConfig {
     blocklist: string[];
     trustedCommand: string;
   };
-  trustBoundary: { devices: TrustDevice[]; llmPlacement: string };
+  trustBoundary: {
+    devices: TrustDevice[];
+    llmPlacement: string;
+    /**
+     * 密钥集中度的自我披露（服务端 /api/config 下发）。可选：老 orchestrator
+     * 或静态快照缺该字段时，页面回退到 lib/snapshot.ts 的同文本常量。
+     */
+    keyConcentration?: { zh: string; en: string };
+  };
 }
 
 export interface VerifyCheckResult {
@@ -149,6 +178,16 @@ export interface ChainReceipt {
   blockHeight: number;
   isHeartbeat: boolean;
   txHash: string;
+  /**
+   * 出处（服务端 /api/receipts 下发）：
+   *   "indexer-cache" = 来自 `scripts/index-receipts.mjs` 的产物（可能指向已废弃 registry，
+   *                     故必须与下面 registry 一起读，不能当成"当前收据"直接展示）
+   *   "tail-scan"     = 来自服务端最近 2000 块的链上尾扫（必为当前 REGISTRY）
+   * 旧服务端不回这两个字段——缺省时页面按"出处未知"处理，不做任何乐观假设。
+   */
+  source?: "indexer-cache" | "tail-scan";
+  /** 该收据所在 ReceiptRegistry 地址；与 /api/config 的当前 registry 不一致即为陈旧来源 */
+  registry?: string | null;
 }
 
 /**
@@ -333,7 +372,7 @@ async function postRaw<T>(path: string, body: unknown, ms: number): Promise<{ ok
   try {
     const r = await fetch(`${ORCH}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(ms),
       cache: "no-store",

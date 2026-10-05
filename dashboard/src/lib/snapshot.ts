@@ -22,7 +22,7 @@ export const SNAPSHOT_DEVICES: TrustDevice[] = [
     role: "proposer",
     name: "Proposer 机器（本机）",
     holds: ["MONAD_TESTNET_PK"],
-    note: "双 LLM 管线 + 确定性 δ 预览；持有 TEE 私钥，可提交收据",
+    note: "双 LLM 管线 + 确定性 δ 预览；持有 TEE 私钥，可提交收据。⚠️ 同一地址当前也是链上金库 owner（见下方「密钥现状」）",
   },
   {
     role: "challenger",
@@ -37,6 +37,17 @@ export const SNAPSHOT_DEVICES: TrustDevice[] = [
     note: "实时生成绑定 digest 的 TDX quote，链上 DCAP 验真",
   },
 ];
+
+/**
+ * 与 orchestrator /api/config 的 trustBoundary.keyConcentration 同文本。
+ * ⚠️ 改文案必须两侧同步（server.mjs 的 keyConcentration）——这段是刻意的自我披露，
+ * 不允许在离线快照里被弱化成更好听的版本。
+ */
+export const SNAPSHOT_KEY_CONCENTRATION = {
+  zh: "链上金库 owner、TEE 执行地址与 proposer 签名地址当前是同一个地址（见 /subaccounts 或链上 owner() / teeDerivedAddress() / registry.agentTEE(1)）。因此严格成立的表述是——Agent 无法执行一笔未经 challenger 背书的交易；而金库治理权（withdraw / setLimits / setTarget / setReceiptRegistry / setTrustedValidator）目前集中在单一密钥上，该钥单独即可提空金库或更换收据表以绕过 quorum 闸门。生产化拆分路线：owner 多签 + governance timelock + TEE 独立 HSM/独立主机。",
+  en: "the on-chain vault owner, the TEE execution address and the proposer signing address are currently the SAME address (see /subaccounts, or on-chain owner() / teeDerivedAddress() / registry.agentTEE(1)). The strict claim is therefore: the agent cannot execute a trade without an endorsed challenger verdict. Vault governance (withdraw / setLimits / setTarget / setReceiptRegistry / setTrustedValidator) is currently concentrated in a single key, which alone can drain the vault or swap the receipt table to bypass the quorum gate. Production split: owner multisig + governance timelock + a separate TEE HSM/host.",
+} as const;
+
 
 /**
  * 静态导出下的合约地址缺省值。与 lib/chain.ts 的 ADDR 默认值同源，

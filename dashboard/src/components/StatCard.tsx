@@ -32,7 +32,7 @@ export function StatCard({
       <div className="flex items-start justify-between">
         {Icon && <Icon className={`h-4 w-4 ${tone}`} />}
         {sample && (
-          <span className="rounded bg-input px-1.5 py-0.5 text-[10px] text-muted">{L("示例", "sample")}</span>
+          <span className="rounded bg-input px-1.5 py-0.5 text-[12px] text-muted">{L("示例", "sample")}</span>
         )}
       </div>
       <div className="mono mt-3 text-2xl font-semibold">
@@ -43,7 +43,7 @@ export function StatCard({
         )}
       </div>
       <div className="mt-1 text-xs text-tertiary">{label}</div>
-      {sub && <div className={`mono mt-1 text-[11px] ${tone}`}>{sub}</div>}
+      {sub && <div className={`mono mt-1 text-[12px] ${tone}`}>{sub}</div>}
     </div>
   );
 }

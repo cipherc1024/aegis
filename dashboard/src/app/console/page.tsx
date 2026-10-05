@@ -36,19 +36,19 @@ export default function ConsolePage() {
           {PIPELINE.map((step, i) => (
             <div key={step.en} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan/15 text-[11px] text-cyan">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan/15 text-[12px] text-cyan">
                   {i + 1}
                 </div>
                 {i < PIPELINE.length - 1 && <div className="my-1 h-6 w-px bg-border-base" />}
               </div>
               <div className="pb-1">
                 <div className="text-sm">{L(step.zh, step.en)}</div>
-                <div className="mono text-[11px] text-muted">{step.d}</div>
+                <div className="mono text-[12px] text-muted">{step.d}</div>
               </div>
             </div>
           ))}
         </div>
-        <p className="mt-4 text-[11px] leading-relaxed text-muted">
+        <p className="mt-4 text-[12px] leading-relaxed text-muted">
           {L(
             "流水线是设计结构，不是实时进度条 —— 每一步的产物（语义摘要、PDR、收据）可在「收据流」与「验证器」页按真实哈希核对。",
             "The pipeline shows design structure, not live progress. Each step's artifact (semantic digest, PDR, receipt) can be checked by real hash on Receipts and Verifier."
@@ -124,7 +124,7 @@ export default function ConsolePage() {
               </span>
             </ConfirmTx>
           </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          <p className="mt-3 text-[12px] leading-relaxed text-muted">
             {L(
               "两个按钮都会真实发交易（emergencyPause / resumeTrading，onlyOwner）。冻结只停 executeTrade，owner 的 withdraw 永不冻结。",
               "Both buttons send real transactions (emergencyPause / resumeTrading, onlyOwner). Freezing only halts executeTrade; the owner's withdraw is never frozen."
@@ -145,7 +145,7 @@ export default function ConsolePage() {
             <Row k={L("窗口日", "Window day")} v={vault ? String(vault.dailyWindowDay) : "—"} tone="text-secondary" />
             <Row k={L("金库地址", "Vault")} v={vault ? `${vault.address.slice(0, 10)}…` : "—"} tone="text-muted" />
           </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          <p className="mt-3 text-[12px] leading-relaxed text-muted">
             {L(
               "改动限额与白名单在「策略」页；本页只做冻结/解冻这类应急动作。",
               "Change limits and the whitelist on the Policy page; this page only performs emergency actions such as freeze/resume."

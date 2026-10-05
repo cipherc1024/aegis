@@ -87,7 +87,7 @@ export default function AuditPage() {
       <div className="mb-5 flex items-center gap-2">
         <ClipboardList className="h-5 w-5 text-cyan" />
         <h1 className="text-lg font-semibold">{L("审计日志", "Audit Log")}</h1>
-        <span className={`ml-auto text-[11px] ${live ? "text-green" : "text-amber"}`}>
+        <span className={`ml-auto text-[12px] ${live ? "text-green" : "text-amber"}`}>
           {live ? L("链上", "on-chain") : loading ? L("读取中", "loading") : L("离线", "offline")}
         </span>
       </div>
@@ -130,7 +130,7 @@ export default function AuditPage() {
         })}
       </div>
 
-      <p className="mt-4 text-[11px] leading-relaxed text-muted">
+      <p className="mt-4 text-[12px] leading-relaxed text-muted">
         {L(
           "导出在浏览器内完成，不经服务端。字段真值两档：浏览器直读 ReceiptSubmitted 富事件（含 executionHash/nonce/guardrailHash，仅最近约 4000 块）；orchestrator 索引器（深历史，仅 4 字段，其余显示为「—」）。",
           "Export happens in the browser, not on any server. Fields come from two real sources: direct reads of the ReceiptSubmitted rich event (executionHash/nonce/guardrailHash, last ~4000 blocks), and the orchestrator indexer (deep history, 4 fields only, the rest shown as \"—\")."
@@ -145,7 +145,7 @@ function Stat({ k, v, sub }: { k: string; v: string; sub?: string }) {
     <div className="card p-4">
       <div className="text-xs text-tertiary">{k}</div>
       <div className="mono mt-2 text-sm text-primary">{v}</div>
-      {sub && <div className="mt-1 text-[11px] text-muted">{sub}</div>}
+      {sub && <div className="mt-1 text-[12px] text-muted">{sub}</div>}
     </div>
   );
 }

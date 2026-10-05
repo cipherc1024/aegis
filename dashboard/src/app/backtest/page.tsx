@@ -64,7 +64,7 @@ export default function ExecStatsPage() {
 
       <div className="mb-4 flex items-start gap-2 rounded-md border border-amber/40 bg-amber/5 p-3">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" />
-        <div className="text-[11px] leading-relaxed text-amber">
+        <div className="text-[12px] leading-relaxed text-amber">
           {L(
             "本页不是收益回测。收益率 / 最大回撤 / 胜率 / 夏普需要一个价格数据管道，本系统不产生（链上也没有价格字段）——那属于另一件事。这里给的是执行事实：每笔交易的决策是否被独立 challenger 重推导并背书。",
             "This is not a return backtest. Return / max drawdown / win rate / Sharpe require a price pipeline that this system does not have (and there are no price fields on-chain) — that would be a separate effort. What is shown here are execution facts: whether each trade's decision was independently re-derived and endorsed by a challenger."
@@ -76,7 +76,7 @@ export default function ExecStatsPage() {
         <div className="mb-4 flex items-start gap-2 rounded-md border border-amber/40 bg-amber/5 p-3 text-xs text-amber">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {L("读取失败（orchestrator 不可达或 RPC 抖动）：", "Read failed (orchestrator unreachable or RPC flake):")} {err}
-          <button onClick={() => void refresh()} className="ml-2 rounded border border-amber/40 px-1.5 py-0.5 text-[10px] hover:bg-amber/10">
+          <button onClick={() => void refresh()} className="ml-2 rounded border border-amber/40 px-1.5 py-0.5 text-[12px] hover:bg-amber/10">
             {L("重试", "retry")}
           </button>
         </div>
@@ -104,7 +104,7 @@ export default function ExecStatsPage() {
             <Card k={L("心跳收据", "Heartbeats")} v={String(st.heartbeats)} />
           </div>
 
-          <div className="card mb-4 p-4 text-[11px] leading-relaxed text-tertiary">
+          <div className="card mb-4 p-4 text-[12px] leading-relaxed text-tertiary">
             {L("覆盖区块", "Block coverage")}: <span className="mono text-secondary">{st.firstBlock ?? "—"}</span>
             {" — "}
             <span className="mono text-secondary">{st.lastBlock ?? "—"}</span>
@@ -136,7 +136,7 @@ function Row({ r }: { r: ExecStatsRow }) {
   const L = useL();
   const v = r.validation;
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 text-[11px]">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 text-[12px]">
       <span className="mono text-tertiary">{r.blockHeight}</span>
       <span className={r.isHeartbeat ? "text-muted" : "text-secondary"}>
         {r.isHeartbeat ? L("心跳", "heartbeat") : L("交易", "trade")}

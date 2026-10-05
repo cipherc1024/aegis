@@ -49,7 +49,7 @@ export default function VaultsPage() {
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <div>
             {L("orchestrator 不可达，读不到金库清单。", "orchestrator unreachable — cannot read the vault list.")}
-            <div className="mt-1 text-[11px] leading-relaxed text-tertiary">
+            <div className="mt-1 text-[12px] leading-relaxed text-tertiary">
               {L(
                 "清单本身是链上直读的结果，不在本页缓存。下面的口径说明仍然成立：它讲的是这个清单为何长这样，与本次 RPC 读有没有成功无关。",
                 "The list itself is read straight from chain and is not cached on this page. The explanation below still holds: it explains why the list has this shape, independent of whether this RPC read succeeded.",
@@ -68,7 +68,7 @@ export default function VaultsPage() {
 
       {/* 结构说明与扫描口径：与"这次读没读到"无关，离线也照常渲染，
           否则页面离线时就只剩标题 + 一个刷新按钮。 */}
-      <div className="mb-4 rounded-md border border-border-subtle bg-input p-3 text-[11px] leading-relaxed text-tertiary">
+      <div className="mb-4 rounded-md border border-border-subtle bg-input p-3 text-[12px] leading-relaxed text-tertiary">
         {L(
           "AegisVaultQuorum 的 agentId 是 immutable —— 一个金库只服务一个 agent。因此本清单的行数 = 已部署的金库数，而不是产品目录里的可选策略数。每个 agent 的「策略」是它自己的 challenger 策略文件，见策略编辑器。",
           "AegisVaultQuorum's agentId is immutable — one vault serves exactly one agent. So this list has as many rows as there are deployed vaults, not curated strategies. Each agent's strategy is its own challenger policy file (see Policy Editor)."
@@ -96,35 +96,35 @@ export default function VaultsPage() {
                       {L("agentId", "agentId")} {a.agentId}
                     </span>
                     {v?.configured ? (
-                      <span className="flex items-center gap-1 rounded border border-green/40 bg-green/5 px-1.5 py-0.5 text-[10px] text-green">
+                      <span className="flex items-center gap-1 rounded border border-green/40 bg-green/5 px-1.5 py-0.5 text-[12px] text-green">
                         <Check className="h-3 w-3" />
                         {L("金库已配置", "vault configured")}
                       </span>
                     ) : readError ? (
-                      <span className="flex items-center gap-1 rounded border border-amber/40 bg-amber/5 px-1.5 py-0.5 text-[10px] text-amber">
+                      <span className="flex items-center gap-1 rounded border border-amber/40 bg-amber/5 px-1.5 py-0.5 text-[12px] text-amber">
                         <AlertTriangle className="h-3 w-3" />
                         {L("状态读取失败", "read failed")}
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 rounded border border-amber/40 bg-amber/5 px-1.5 py-0.5 text-[10px] text-amber">
+                      <span className="flex items-center gap-1 rounded border border-amber/40 bg-amber/5 px-1.5 py-0.5 text-[12px] text-amber">
                         <AlertTriangle className="h-3 w-3" />
                         {L("无金库", "no vault")}
                       </span>
                     )}
                     {v?.frozen && (
-                      <span className="rounded border border-red/40 bg-red/5 px-1.5 py-0.5 text-[10px] text-red">
+                      <span className="rounded border border-red/40 bg-red/5 px-1.5 py-0.5 text-[12px] text-red">
                         {L("已冻结", "frozen")}
                       </span>
                     )}
                   </div>
 
                   {!v?.configured && (
-                    <div className="mt-2 text-[11px] leading-relaxed text-amber">
+                    <div className="mt-2 text-[12px] leading-relaxed text-amber">
                       {a.vaultNote ?? "—"}
                       {readError && (
                         <button
                           onClick={() => void refresh()}
-                          className="ml-2 rounded border border-amber/40 px-1.5 py-0.5 text-[10px] hover:bg-amber/10"
+                          className="ml-2 rounded border border-amber/40 px-1.5 py-0.5 text-[12px] hover:bg-amber/10"
                         >
                           {L("重试", "retry")}
                         </button>
@@ -134,7 +134,7 @@ export default function VaultsPage() {
 
                   {/* 地址已匹配：即使状态读失败也如实显示地址，不隐藏 */}
                   {v && !v.configured && (
-                    <div className="mono mt-2 break-all text-[10px] text-muted">
+                    <div className="mono mt-2 break-all text-[12px] text-muted">
                       {v.address}
                       <span className="ml-1.5 text-tertiary">({v.source})</span>
                     </div>
@@ -142,7 +142,7 @@ export default function VaultsPage() {
 
                   {v?.configured && (
                     <>
-                      <div className="mono mt-2 break-all text-[10px] text-muted">
+                      <div className="mono mt-2 break-all text-[12px] text-muted">
                         {v.address}
                         <a
                           href={`https://testnet.monadexplorer.com/address/${v.address}`}
@@ -154,7 +154,7 @@ export default function VaultsPage() {
                           <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] sm:grid-cols-3">
+                      <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-[12px] sm:grid-cols-3">
                         <Stat k={L("MON 余额", "MON balance")} v={v.balanceMonHuman !== undefined ? `${v.balanceMonHuman} MON` : "—"} />
                         <Stat k={L("单笔限额", "per-tx limit")} v={v.perTxLimit ? `${Number(v.perTxLimit) / 1e18} MON` : "—"} />
                         <Stat k={L("每日限额", "daily limit")} v={v.dailyLimit ? `${Number(v.dailyLimit) / 1e18} MON` : "—"} />
@@ -168,13 +168,13 @@ export default function VaultsPage() {
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Link
                           href="/funds"
-                          className="rounded-md border border-cyan/40 bg-cyan/5 px-2.5 py-1 text-[11px] text-cyan hover:bg-cyan/10"
+                          className="rounded-md border border-cyan/40 bg-cyan/5 px-2.5 py-1 text-[12px] text-cyan hover:bg-cyan/10"
                         >
                           {L("存取款 →", "Deposit / withdraw →")}
                         </Link>
                         <Link
                           href="/policy"
-                          className="rounded-md border border-border-base px-2.5 py-1 text-[11px] text-secondary hover:border-border-hover"
+                          className="rounded-md border border-border-base px-2.5 py-1 text-[12px] text-secondary hover:border-border-hover"
                         >
                           {L("策略编辑器 →", "Policy editor →")}
                         </Link>
@@ -182,7 +182,7 @@ export default function VaultsPage() {
                     </>
                   )}
 
-                  <div className="mono mt-2 break-all text-[10px] text-muted">
+                  <div className="mono mt-2 break-all text-[12px] text-muted">
                     owner {a.owner ?? "—"}
                   </div>
                 </div>
@@ -193,28 +193,28 @@ export default function VaultsPage() {
           {/* 扫描口径如实说明：链上没有 agentId → vault 索引 */}
           <div className="card mt-4 p-5">
             <div className="text-sm">{L("本清单是怎么扫出来的", "How this list is discovered")}</div>
-            <div className="mt-1 text-[11px] leading-relaxed text-tertiary">{st.scan.note}</div>
-            <div className="mt-2 space-y-1 text-[11px]">
+            <div className="mt-1 text-[12px] leading-relaxed text-tertiary">{st.scan.note}</div>
+            <div className="mt-2 space-y-1 text-[12px]">
               <div className="text-tertiary">
                 {L("候选地址（来自配置）", "Candidate addresses (from config)")}:
               </div>
               {st.scan.candidates.map((c) => (
-                <div key={`${c.source}-${c.address}`} className="mono break-all text-[10px] text-muted">
+                <div key={`${c.source}-${c.address}`} className="mono break-all text-[12px] text-muted">
                   {c.source} → {c.address}
                   {c.declaredAgentId !== null ? ` (declared agentId ${c.declaredAgentId})` : ""}
                 </div>
               ))}
               {st.scan.candidates.length === 0 && (
-                <div className="text-[10px] text-muted">{L("（无）", "(none)")}</div>
+                <div className="text-[12px] text-muted">{L("（无）", "(none)")}</div>
               )}
             </div>
             {st.scan.unroutedCandidates.length > 0 && (
               <div className="mt-3 rounded-md border border-amber/40 bg-amber/5 p-2.5">
-                <div className="text-[11px] text-amber">
+                <div className="text-[12px] text-amber">
                   {L("已配置但未匹配到任何 agent 的地址", "Configured but matched no agent")}
                 </div>
                 {st.scan.unroutedCandidates.map((u) => (
-                  <div key={`${u.address}-${u.onchainAgentId}`} className="mono break-all text-[10px] text-muted">
+                  <div key={`${u.address}-${u.onchainAgentId}`} className="mono break-all text-[12px] text-muted">
                     {u.address} → {L("链上 agentId", "on-chain agentId")} {u.onchainAgentId}（{u.source}）
                   </div>
                 ))}

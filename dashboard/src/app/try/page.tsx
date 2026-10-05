@@ -196,7 +196,7 @@ export default function TryPage() {
                 setReplay(null);
                 setError(null);
               }}
-              className={`rounded-lg border px-3 py-1.5 text-[11px] transition-colors ${
+              className={`rounded-lg border px-3 py-1.5 text-[12px] transition-colors ${
                 presetEn === p.en ? "border-cyan/50 bg-cyan/5 text-cyan" : "border-border-base text-secondary hover:border-border-hover"
               }`}
             >
@@ -214,11 +214,11 @@ export default function TryPage() {
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             {L("运行（零 gas）", "Run (zero gas)")}
           </button>
-          {phase ? <span className="text-[11px] text-tertiary">{phase}</span> : null}
-          {elapsed !== null ? <span className="mono text-[11px] text-muted">{(elapsed / 1000).toFixed(1)}s</span> : null}
+          {phase ? <span className="text-[12px] text-tertiary">{phase}</span> : null}
+          {elapsed !== null ? <span className="mono text-[12px] text-muted">{(elapsed / 1000).toFixed(1)}s</span> : null}
         </div>
         {cfg ? (
-          <div className="mono mt-3 break-all text-[10px] text-muted">
+          <div className="mono mt-3 break-all text-[12px] text-muted">
             {L("白名单标的", "whitelist targets")} {cfg.policy.whitelist.join(", ") || "—"} · {L("评审上限", "judge cap")}{" "}
             {cfg.policy.demoMaxMon} MON · {L("链上单笔上限", "on-chain cap")} {cfg.policy.perTxLimitMon} MON
           </div>
@@ -233,14 +233,14 @@ export default function TryPage() {
             {/* orchestrator 不在线时给出可读的三段结构：用实测捕获的回放补齐，
                 并明确标注来源。这不是"降级成假数据"——每个字节都来自一次真实运行。 */}
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] text-tertiary">
+              <span className="text-[12px] text-tertiary">
                 {L("后端不在线，可先看实测回放：", "Backend offline — you can inspect a captured replay:")}
               </span>
               {replayCases.map((s) => (
                 <button
                   key={s.key}
                   onClick={() => showReplay(s)}
-                  className="rounded-lg border border-border-base px-2.5 py-1 text-[11px] text-secondary hover:border-border-hover"
+                  className="rounded-lg border border-border-base px-2.5 py-1 text-[12px] text-secondary hover:border-border-hover"
                 >
                   {L(s.zh, s.en)}
                 </button>
@@ -258,7 +258,7 @@ export default function TryPage() {
               <div className="text-sm font-medium text-amber">
                 {L("这是回放样例，不是本次运行的结果", "This is a captured replay, not the result of this run")}
               </div>
-              <div className="mt-1 text-[11px] leading-relaxed text-tertiary">
+              <div className="mt-1 text-[12px] leading-relaxed text-tertiary">
                 {L(
                   `下方三段内容逐字节来自一次真实运行（${replay.capturedAt}，mode=live），未做任何改写或补全。差异只有一个：本次由 orchestrator 现算，回放是把那次现算的结果原样呈现。点「运行」会用你当前的输入真的跑一遍。`,
                   `All three sections below are byte-for-byte from a real run (${replay.capturedAt}, mode=live), with nothing rewritten or filled in. The only difference: a live run computes it now; the replay shows what that run computed. Press Run to actually execute your current input.`
@@ -271,7 +271,7 @@ export default function TryPage() {
               <button
                 key={s.key}
                 onClick={() => showReplay(s)}
-                className={`rounded-lg border px-2.5 py-1 text-[11px] ${
+                className={`rounded-lg border px-2.5 py-1 text-[12px] ${
                   replay.key === s.key ? "border-amber/50 bg-amber/5 text-amber" : "border-border-base text-secondary hover:border-border-hover"
                 }`}
               >
@@ -280,7 +280,7 @@ export default function TryPage() {
             ))}
             <button
               onClick={() => showReplay(null)}
-              className="rounded-lg border border-cyan/50 bg-cyan/5 px-2.5 py-1 text-[11px] text-cyan hover:opacity-90"
+              className="rounded-lg border border-cyan/50 bg-cyan/5 px-2.5 py-1 text-[12px] text-cyan hover:opacity-90"
             >
               {L("关闭回放", "Close replay")}
             </button>
@@ -310,7 +310,7 @@ export default function TryPage() {
                     ? L("δ 裁决：拒绝", "δ verdict: REJECT")
                     : L("δ 裁决：放行", "δ verdict: ACCEPT")}
               </div>
-              <div className="mono mt-0.5 truncate text-[11px] text-tertiary">
+              <div className="mono mt-0.5 truncate text-[12px] text-tertiary">
                 {refusedByModel
                   ? `${shown.pipe?.stage} · ${shown.pipe?.reason}`
                   : `guardrail=[${(shown.ver?.proposer?.guardrail ?? shown.pipe?.guardrail ?? []).join(", ")}] pace=${(shown.ver?.proposer?.pace ?? shown.pipe?.pace) ?? "null"}`}
@@ -328,14 +328,14 @@ export default function TryPage() {
             <div className="space-y-2">
               {shown.pipe.steps.map((s, i) => (
                 <div key={i} className="rounded-lg bg-input px-3 py-2">
-                  <div className="mono text-[10px] text-muted">{s.stage}</div>
-                  <pre className="mono mt-1 overflow-x-auto whitespace-pre-wrap break-all text-[11px] text-secondary">
+                  <div className="mono text-[12px] text-muted">{s.stage}</div>
+                  <pre className="mono mt-1 overflow-x-auto whitespace-pre-wrap break-all text-[12px] text-secondary">
                     {JSON.stringify(s.stage === "isolated_llm" ? { facts: s.facts, suspicious: s.suspicious } : s.plan, null, 1)}
                   </pre>
                 </div>
               ))}
               {shown.pipe.intent ? (
-                <div className="mono rounded-lg border border-purple/30 bg-purple/5 px-3 py-2 text-[11px] text-purple">
+                <div className="mono rounded-lg border border-purple/30 bg-purple/5 px-3 py-2 text-[12px] text-purple">
                   {L("解析出的意图", "resolved intent")}: target={shown.pipe.intent.target} amount={shown.pipe.intent.amount} data={shown.pipe.intent.data}
                 </div>
               ) : null}
@@ -379,14 +379,14 @@ export default function TryPage() {
                   // 两侧结论一致时，"差异"只是记录性字段对不上，不是裁决分歧
                   const benign = shown.ver?.agree === true;
                   return (
-                    <div key={i} className={`mono text-[10px] ${benign ? "text-muted" : "text-red"}`}>
+                    <div key={i} className={`mono text-[12px] ${benign ? "text-muted" : "text-red"}`}>
                       {benign ? L("记录差异（不影响结论）", "bookkeeping diff (verdict unaffected)") : L("不一致", "mismatch")}: {s}
                     </div>
                   );
                 })}
               </div>
             ) : null}
-            <div className="mt-2 text-[11px] text-tertiary">
+            <div className="mt-2 text-[12px] text-tertiary">
               {L(
                 "两套实现单向零依赖：challenger 只依赖 ethers + 自己的目标层实现，共享一个 bug 会让双方同时被骗；代价是口径可能漂移，所以每次改口径都要跑 scripts/parity-check.mjs（该守卫的方向是 proposer 预览 → challenger 裁决）。",
                 "One-way zero dependency: the challenger depends only on ethers plus its own objective-layer implementation, so a shared bug cannot fool both sides. The cost is caliber drift, which is why scripts/parity-check.mjs must be run after any change to the predicate (it guards the proposer-preview → challenger-verdict direction)."
@@ -422,11 +422,11 @@ export default function TryPage() {
                 ) : null}
               </div>
             ) : (
-              <div className="text-[11px] text-muted">{L("未运行 / 未走到该步", "not reached")}</div>
+              <div className="text-[12px] text-muted">{L("未运行 / 未走到该步", "not reached")}</div>
             )}
           </Step>
 
-          <div className="card p-4 text-[11px] leading-relaxed text-tertiary">
+          <div className="card p-4 text-[12px] leading-relaxed text-tertiary">
             {L(
               "真实上链（提交收据 → challenger 上链 validation → 金库 executeTrade）需要 gas 与独立 challenger 机器在线，本页默认不触发。要做到那一步，用 scripts/quorum-e2e.mjs，或在本页把请求体加上 execute:true 走完整链路。",
               "Real on-chain execution (submit receipt → challenger writes validation → vault executeTrade) needs gas and a live challenger machine, so this page does not trigger it. Use scripts/quorum-e2e.mjs, or add execute:true to the request body."
@@ -456,7 +456,7 @@ function Step({
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {icon}
         <span className="text-sm font-medium">{title}</span>
-        {badge ? <span className={`mono rounded bg-input px-2 py-0.5 text-[10px] ${tone}`}>{badge}</span> : null}
+        {badge ? <span className={`mono rounded bg-input px-2 py-0.5 text-[12px] ${tone}`}>{badge}</span> : null}
       </div>
       {children}
     </div>
@@ -471,9 +471,9 @@ function Verdict({ name, verdict, detail }: { name: string; verdict?: "accept" |
       <div className="flex items-center gap-2">
         <Icon className={`h-3.5 w-3.5 ${tone}`} />
         <span className="text-xs">{name}</span>
-        <span className={`mono ml-auto text-[11px] ${tone}`}>{verdict ?? "—"}</span>
+        <span className={`mono ml-auto text-[12px] ${tone}`}>{verdict ?? "—"}</span>
       </div>
-      <div className="mono mt-1.5 break-all text-[10px] text-muted">{detail}</div>
+      <div className="mono mt-1.5 break-all text-[12px] text-muted">{detail}</div>
     </div>
   );
 }
@@ -481,8 +481,8 @@ function Verdict({ name, verdict, detail }: { name: string; verdict?: "accept" |
 function KV({ k, v, tone = "text-secondary" }: { k: string; v: string; tone?: string }) {
   return (
     <div className="flex items-start justify-between gap-3 border-b border-border-subtle py-1.5 last:border-0">
-      <span className="shrink-0 text-[11px] text-muted">{k}</span>
-      <span className={`mono break-all text-right text-[11px] ${tone}`}>{v}</span>
+      <span className="shrink-0 text-[12px] text-muted">{k}</span>
+      <span className={`mono break-all text-right text-[12px] ${tone}`}>{v}</span>
     </div>
   );
 }

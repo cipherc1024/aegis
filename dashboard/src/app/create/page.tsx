@@ -82,7 +82,7 @@ export default function CreateAgentPage() {
             />
           </Field>
 
-          <div className="rounded-md border border-border-subtle bg-input p-3 text-[11px] leading-relaxed text-tertiary">
+          <div className="rounded-md border border-border-subtle bg-input p-3 text-[12px] leading-relaxed text-tertiary">
             {L(
               "注册只写 ERC-8004 IdentityRegistry（permissionless，任何人可注册，仅产生身份）。以下三项注册不会产生，需另行完成：",
               "Registration only writes the ERC-8004 IdentityRegistry (permissionless, identity only). These three are NOT created by registering:"
@@ -118,7 +118,7 @@ export default function CreateAgentPage() {
                 <Check className="h-3.5 w-3.5" />
                 {L(`agentId ${lastNewId} 已注册`, `agentId ${lastNewId} registered`)}
               </div>
-              <div className="mt-2 text-[11px] leading-relaxed text-amber">
+              <div className="mt-2 text-[12px] leading-relaxed text-amber">
                 {L("该 agent 现在只有身份。要让它真正能交易，还需要：", "It has an identity only. To actually trade it still needs:")}
                 <ul className="mt-1 list-disc space-y-0.5 pl-4">
                   <li>部署 AegisVaultQuorum(agentId={lastNewId}) → 地址写入 .env 的 QUORUM_VAULT_{lastNewId}</li>
@@ -129,7 +129,7 @@ export default function CreateAgentPage() {
             </div>
           )}
 
-          <div className="text-[11px] leading-relaxed text-muted">
+          <div className="text-[12px] leading-relaxed text-muted">
             {L(
               "本页不提供「策略类型 / 初始资金 / 派生地址 / 度量白名单」输入框——这些在注册这一步没有任何链上落点，填了也只是本地字符串。",
               "No strategy-type / capital / derived-address / measurement fields here — none of them have an on-chain landing point at registration; they would be local strings only."
@@ -140,7 +140,7 @@ export default function CreateAgentPage() {
         {/* 注册表真实读数 */}
         <div className="card p-5">
           <div className="mb-1 text-sm font-medium">{L("已注册 Agent（链上真实读数）", "Registered agents (live chain reads)")}</div>
-          <div className="mb-4 text-[11px] text-muted">
+          <div className="mb-4 text-[12px] text-muted">
             {L("ERC-8004 IdentityRegistry.lastId()", "ERC-8004 IdentityRegistry.lastId()")}
             {": "}
             <span className="mono text-secondary">{loading ? "…" : ident ? ident.lastId : "—"}</span>
@@ -178,10 +178,10 @@ export default function CreateAgentPage() {
                     <span className="text-xs font-medium">
                       agentId {a.agentId} · {label}
                     </span>
-                    {a.owner === null && <span className="text-[10px] text-red">{L("不可读", "unreadable")}</span>}
+                    {a.owner === null && <span className="text-[12px] text-red">{L("不可读", "unreadable")}</span>}
                   </div>
-                  <div className="mono mt-1 break-all text-[10px] text-muted">owner {a.owner ?? "—"}</div>
-                  <div className="mono break-all text-[10px] text-muted">wallet {a.agentWallet ?? "—"}</div>
+                  <div className="mono mt-1 break-all text-[12px] text-muted">owner {a.owner ?? "—"}</div>
+                  <div className="mono break-all text-[12px] text-muted">wallet {a.agentWallet ?? "—"}</div>
                 </div>
               );
             })}

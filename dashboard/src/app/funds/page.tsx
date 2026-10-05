@@ -40,7 +40,7 @@ export default function FundsPage() {
         <button
           type="button"
           onClick={() => void refresh()}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-border-base px-2.5 py-1 text-[11px] text-tertiary hover:border-border-hover hover:text-secondary"
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-border-base px-2.5 py-1 text-[12px] text-tertiary hover:border-border-hover hover:text-secondary"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
           {L("刷新", "refresh")}
@@ -66,7 +66,7 @@ export default function FundsPage() {
               tone={vault.frozen ? "text-red" : "text-green"}
             />
             <div className="col-span-2 md:col-span-4">
-              <div className="mono break-all text-[11px] text-muted">
+              <div className="mono break-all text-[12px] text-muted">
                 {L("金库地址", "vault")} {vault.address} · agentId {vault.agentId} · owner {vault.owner}
               </div>
             </div>
@@ -114,7 +114,7 @@ export default function FundsPage() {
               {L("存入", "Deposit")}
             </ConfirmTx>
           </div>
-          <div className="mt-3 text-[11px] text-muted">
+          <div className="mt-3 text-[12px] text-muted">
             {L(
               "资金从 owner 钱包进入金库自有余额；executeTrade 只能动用金库余额，且受 PACE 限额约束。",
               "Funds move from the owner wallet into the vault. executeTrade can only spend vault balance, capped by PACE."
@@ -127,7 +127,7 @@ export default function FundsPage() {
           <div className="mb-4 flex items-center gap-2 text-sm font-medium">
             <ArrowUpFromLine className="h-4 w-4 text-green" />
             {L("提现", "Withdraw")}
-            <span className="ml-auto flex items-center gap-1 rounded-md bg-green/10 px-2 py-0.5 text-[10px] text-green">
+            <span className="ml-auto flex items-center gap-1 rounded-md bg-green/10 px-2 py-0.5 text-[12px] text-green">
               <Lock className="h-3 w-3" />
               {L("永不冻结", "Always open")}
             </span>
@@ -166,7 +166,7 @@ export default function FundsPage() {
               {L("提现", "Withdraw")}
             </ConfirmTx>
           </div>
-          <div className="mt-3 text-[11px] text-muted">
+          <div className="mt-3 text-[12px] text-muted">
             {L(
               "withdraw 是独立逃生通道：onlyOwner，且在 tradingFrozen 时依然可用。",
               "withdraw is an independent escape hatch: onlyOwner, still callable while tradingFrozen."
@@ -186,8 +186,8 @@ export default function FundsPage() {
               <div key={t.address} className="flex items-center gap-3 border-b border-border-subtle py-2 text-xs last:border-0">
                 <span className={`h-2 w-2 rounded-full ${t.whitelisted ? "bg-cyan" : "bg-red"}`} />
                 <span className="w-16 text-secondary">{t.symbol}</span>
-                <span className="mono text-[11px] text-muted">{t.address}</span>
-                <span className={`ml-auto rounded px-1.5 py-0.5 text-[10px] ${t.whitelisted ? "bg-cyan/10 text-cyan" : "bg-red/10 text-red"}`}>
+                <span className="mono text-[12px] text-muted">{t.address}</span>
+                <span className={`ml-auto rounded px-1.5 py-0.5 text-[12px] ${t.whitelisted ? "bg-cyan/10 text-cyan" : "bg-red/10 text-red"}`}>
                   {t.whitelisted === null ? L("未读", "n/a") : t.whitelisted ? L("白名单内", "whitelisted") : L("不在白名单", "not whitelisted")}
                 </span>
                 <span className="mono w-32 text-right text-secondary">
@@ -203,7 +203,7 @@ export default function FundsPage() {
         <div className="card mt-4 p-4">
           <div className="mb-2 text-sm">{L("最近一笔治理交易", "Last governance tx")}</div>
           <div className="mono break-all text-xs text-secondary">{lastTx.txHash}</div>
-          <div className="mono mt-1 text-[11px] text-muted">gas used {lastTx.gasUsed} · status {String(lastTx.status)}</div>
+          <div className="mono mt-1 text-[12px] text-muted">gas used {lastTx.gasUsed} · status {String(lastTx.status)}</div>
         </div>
       )}
     </div>
@@ -213,7 +213,7 @@ export default function FundsPage() {
 function Field({ label, value, tone = "text-secondary" }: { label: string; value: string; tone?: string }) {
   return (
     <div>
-      <div className="text-[11px] text-tertiary">{label}</div>
+      <div className="text-[12px] text-tertiary">{label}</div>
       <div className={`mono mt-1 text-sm ${tone}`}>{value}</div>
     </div>
   );
@@ -242,7 +242,7 @@ function AmountInput({ value, onChange, maxMon }: { value: string; onChange: (v:
               if (max !== null) onChange(String(Number(((p / 100) * max).toFixed(6))));
               else onChange(String(p / 100));
             }}
-            className="flex-1 rounded-md border border-border-base py-1 text-[11px] text-tertiary hover:border-border-hover hover:text-secondary"
+            className="flex-1 rounded-md border border-border-base py-1 text-[12px] text-tertiary hover:border-border-hover hover:text-secondary"
           >
             {p}%
           </button>

@@ -69,7 +69,7 @@ export default function MarketPage() {
       {/* 诚实边界：业绩数据不是"没接"，是本系统不产生 */}
       <div className="mb-4 flex items-start gap-2 rounded-md border border-amber/40 bg-amber/5 p-3">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" />
-        <div className="text-[11px] leading-relaxed text-amber">
+        <div className="text-[12px] leading-relaxed text-amber">
           {L(
             "本页不展示收益率 / 回撤 / 胜率 / TVL —— 这些数字本系统不产生。Aegis 记录的是「这次决策能否被 challenger 独立重推导出相同结论」，不是盈亏；链上也没有任何价格或业绩字段。要拿业绩需要另建价格数据管道，不在本项目范围内。",
             "No return / drawdown / win-rate / TVL here — this system does not produce those numbers. Aegis records whether a decision is independently re-derivable by a challenger, not profit and loss; there are no price or performance fields on-chain either. Performance data would require a separate price pipeline, which is out of scope."
@@ -81,7 +81,7 @@ export default function MarketPage() {
         <div className="mb-4 flex items-start gap-2 rounded-md border border-amber/40 bg-amber/5 p-3 text-xs text-amber">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {L("读取身份注册表失败（orchestrator 不可达或 RPC 抖动）：", "Failed to read the identity registry (orchestrator unreachable or RPC flake):")} {err}
-          <button onClick={() => void refresh()} className="ml-2 rounded border border-amber/40 px-1.5 py-0.5 text-[10px] hover:bg-amber/10">
+          <button onClick={() => void refresh()} className="ml-2 rounded border border-amber/40 px-1.5 py-0.5 text-[12px] hover:bg-amber/10">
             {L("重试", "retry")}
           </button>
         </div>
@@ -96,7 +96,7 @@ export default function MarketPage() {
 
       {st && (
         <>
-          <div className="mb-4 text-[11px] text-tertiary">
+          <div className="mb-4 text-[12px] text-tertiary">
             {L("链上已注册 agent 总数（lastId()）", "Total registered agents on-chain (lastId())")}:{" "}
             <span className="mono text-secondary">{st.lastId}</span>
           </div>
@@ -135,14 +135,14 @@ function AgentCard({ agent }: { agent: IdentityState["agents"][number] }) {
             </span>
             {meta && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-cyan" />}
           </div>
-          <div className="mono text-[11px] text-muted">ERC-8004 #{agent.agentId}</div>
+          <div className="mono text-[12px] text-muted">ERC-8004 #{agent.agentId}</div>
           {meta?.description && (
-            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-tertiary">{meta.description}</p>
+            <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-tertiary">{meta.description}</p>
           )}
         </div>
       </div>
 
-      <div className="mt-3 space-y-1 text-[11px]">
+      <div className="mt-3 space-y-1 text-[12px]">
         <div className="flex justify-between gap-3">
           <span className="text-tertiary">owner</span>
           <span className="mono truncate text-secondary">{agent.owner ?? "—"}</span>
@@ -154,23 +154,23 @@ function AgentCard({ agent }: { agent: IdentityState["agents"][number] }) {
       </div>
 
       {meta?.registrations && meta.registrations.length > 0 && (
-        <div className="mt-2 text-[10px] text-muted">
+        <div className="mt-2 text-[12px] text-muted">
           {L("注册处", "registrations")}: {meta.registrations.map((r) => `${r.agentRegistry}`).join(", ")}
         </div>
       )}
 
-      {agent.note && <div className="mt-2 text-[10px] text-amber">{agent.note}</div>}
+      {agent.note && <div className="mt-2 text-[12px] text-amber">{agent.note}</div>}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
           href="/vaults"
-          className="rounded-md border border-border-base px-2.5 py-1 text-[11px] text-secondary hover:border-border-hover"
+          className="rounded-md border border-border-base px-2.5 py-1 text-[12px] text-secondary hover:border-border-hover"
         >
           {L("金库状态 →", "Vault status →")}
         </Link>
         <Link
           href="/policy"
-          className="rounded-md border border-border-base px-2.5 py-1 text-[11px] text-secondary hover:border-border-hover"
+          className="rounded-md border border-border-base px-2.5 py-1 text-[12px] text-secondary hover:border-border-hover"
         >
           {L("策略核对 →", "Policy check →")}
         </Link>

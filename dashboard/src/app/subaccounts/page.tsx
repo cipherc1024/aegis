@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useL } from "@/lib/i18n";
 import { api, type VaultState, type AegisConfig } from "@/lib/aegis";
-import { Users, RefreshCw, ExternalLink, ShieldCheck } from "lucide-react";
+import { Users, RefreshCw, ExternalLink, ShieldCheck, AlertTriangle } from "lucide-react";
 import { fmtMon } from "@/components/ConfirmTx";
 
 const EXPLORER = "https://testnet.monadexplorer.com";
@@ -34,6 +34,11 @@ export default function SubaccountsPage() {
   }, []);
 
   const offline = fetched && !vault;
+  // owner 与 TEE 派生地址当前是同一把钥（2026-10-03 链上实测）。必须在页面上说出来，
+  // 否则「3 个角色」会被读成「3 把独立密钥」——而实际上持有该钥的一方单独就能提空金库。
+  // 注意用 `vault !== null &&`（而不是 Boolean(vault) &&）：只有前者能让 TS 在右侧收窄类型。
+  const sameOwnerTee =
+    vault !== null && vault.owner.toLowerCase() === vault.teeDerivedAddress.toLowerCase();
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -43,7 +48,7 @@ export default function SubaccountsPage() {
         <button
           type="button"
           onClick={() => void load()}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-border-base px-2.5 py-1 text-[11px] text-tertiary hover:border-border-hover hover:text-secondary"
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-border-base px-2.5 py-1 text-[12px] text-tertiary hover:border-border-hover hover:text-secondary"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
           {L("刷新", "refresh")}
@@ -66,7 +71,7 @@ export default function SubaccountsPage() {
             <div className="card p-4">
               <div className="text-xs text-tertiary">{L("链上角色数", "On-chain roles")}</div>
               <div className="mono mt-2 text-xl font-semibold">3</div>
-              <div className="mt-1 text-[10px] text-tertiary">{L("owner / TEE 派生 / challenger", "owner / TEE-derived / challenger")}</div>
+              <div className="mt-1 text-[12px] text-tertiary">{L("owner / TEE 派生 / challenger", "owner / TEE-derived / challenger")}</div>
             </div>
           </div>
 
@@ -96,6 +101,21 @@ export default function SubaccountsPage() {
             />
           </div>
 
+          {sameOwnerTee ? (
+            <div className="card mt-4 flex items-start gap-2 border-amber/40 p-4">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
+              <div className="text-[12px] leading-relaxed text-secondary">
+                <span className="mr-1 font-medium text-amber">
+                  {L("注意：上面两个地址是同一个地址", "Note: the two addresses above are the same address")}
+                </span>
+                {L(
+                  `链上实测 owner == TEE 派生地址（${vault.owner}），也就是 orchestrator 进程里持有的那把 MONAD_TESTNET_PK。所以「3 个角色」不等于「3 把独立密钥」：持有该钥的一方单独即可 withdraw 提空金库、改限额/白名单，或换掉 registry 绕过 quorum 闸门。严格成立的只有一句——未经已授权 challenger 背书，Agent 无法执行一笔交易。生产化拆分路线：owner 多签 + governance timelock + TEE 独立 HSM。`,
+                  `On-chain, owner == TEE-derived address (${vault.owner}) — the very key the orchestrator holds as MONAD_TESTNET_PK. So "3 roles" does not mean "3 independent keys": whoever holds it alone can withdraw the whole vault, change limits/allowlist, or swap the registry to bypass the quorum gate. The only strict claim is: the agent cannot execute a trade without an endorsed challenger verdict. Production split: owner multisig + governance timelock + a separate TEE HSM.`
+                )}
+              </div>
+            </div>
+          ) : null}
+
           <div className="card mt-4 flex items-start gap-3 p-5">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan" />
             <div className="text-xs text-secondary">
@@ -111,7 +131,7 @@ export default function SubaccountsPage() {
             href={`${EXPLORER}/address/${vault.address}`}
             target="_blank"
             rel="noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-cyan hover:underline"
+            className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-cyan hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
             {L("在区块浏览器核验金库与角色", "Verify vault and roles on explorer")}
@@ -147,14 +167,14 @@ function RoleRow({
             href={`${EXPLORER}/address/${addr}`}
             target="_blank"
             rel="noreferrer"
-            className={`mono text-[11px] hover:underline ${tone}`}
+            className={`mono text-[12px] hover:underline ${tone}`}
           >
             {addr}
           </a>
-          {addrLabel && <span className="text-[10px] text-muted">{addrLabel}</span>}
+          {addrLabel && <span className="text-[12px] text-muted">{addrLabel}</span>}
         </div>
-        <div className="mt-1 text-[11px] text-secondary">{perm}</div>
-        <div className="mt-0.5 text-[11px] text-tertiary">{note}</div>
+        <div className="mt-1 text-[12px] text-secondary">{perm}</div>
+        <div className="mt-0.5 text-[12px] text-tertiary">{note}</div>
       </div>
     </div>
   );

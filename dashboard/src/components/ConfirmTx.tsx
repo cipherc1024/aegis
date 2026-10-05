@@ -142,7 +142,7 @@ export function ConfirmTx({
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-sm font-semibold">{label}</div>
-                <div className="mono mt-0.5 text-[11px] text-muted">op: {op}</div>
+                <div className="mono mt-0.5 text-[12px] text-muted">op: {op}</div>
               </div>
               <button type="button" onClick={() => setOpen(false)} disabled={sending} className="text-muted hover:text-primary disabled:opacity-40">
                 <X className="h-4 w-4" />
@@ -162,10 +162,10 @@ export function ConfirmTx({
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <div>
                     <div className="mono break-all">{error}</div>
-                    {hint && <div className="mt-1.5 text-[11px] text-amber">{hint}</div>}
+                    {hint && <div className="mt-1.5 text-[12px] text-amber">{hint}</div>}
                   </div>
                 </div>
-                <button type="button" onClick={fetchPreview} className="mt-3 rounded-md border border-border-base px-2.5 py-1 text-[11px] text-secondary hover:border-border-hover">
+                <button type="button" onClick={fetchPreview} className="mt-3 rounded-md border border-border-base px-2.5 py-1 text-[12px] text-secondary hover:border-border-hover">
                   {L("重试", "retry")}
                 </button>
               </div>
@@ -186,7 +186,7 @@ export function ConfirmTx({
                     v={`${(preview.signerBalanceMon - preview.estimatedFeeMon - Number(preview.value) / 1e18).toFixed(4)} MON`}
                   />
                 </div>
-                <div className="mt-3 text-[11px] leading-relaxed text-tertiary">
+                <div className="mt-3 text-[12px] leading-relaxed text-tertiary">
                   {L(
                     "这是一笔真实上链交易，会消耗真实 testnet gas。合约通常在 onlyOwner 下只接受 owner 钱包调用；参数不合法或状态已一致会 revert。",
                     "This is a real on-chain transaction costing real testnet gas."
@@ -194,10 +194,10 @@ export function ConfirmTx({
                 </div>
                 {preview.sideEffects && preview.sideEffects.length > 0 && (
                   <div className="mt-3 rounded-md border border-amber/40 bg-amber/5 p-3">
-                    <div className="text-[11px] font-medium text-amber">
+                    <div className="text-[12px] font-medium text-amber">
                       {L("这笔交易不会产生的东西（orchestrator 如实声明）", "What this tx does NOT create (declared by orchestrator)")}
                     </div>
-                    <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[11px] leading-relaxed text-tertiary">
+                    <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[12px] leading-relaxed text-tertiary">
                       {preview.sideEffects.map((s, i) => (
                         <li key={i}>{s}</li>
                       ))}
@@ -224,7 +224,7 @@ export function ConfirmTx({
             {error && preview && (
               <div className="mt-3 rounded-md border border-red/40 bg-red/5 p-2.5 text-xs text-red">
                 <div className="mono break-all">{error}</div>
-                {hint && <div className="mt-1.5 text-[11px] text-amber">{hint}</div>}
+                {hint && <div className="mt-1.5 text-[12px] text-amber">{hint}</div>}
               </div>
             )}
 

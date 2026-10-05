@@ -43,7 +43,7 @@ export default function CopyPage() {
         <button
           type="button"
           onClick={() => void load()}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-border-base px-2.5 py-1 text-[11px] text-tertiary hover:border-border-hover hover:text-secondary"
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-border-base px-2.5 py-1 text-[12px] text-tertiary hover:border-border-hover hover:text-secondary"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
           {L("刷新", "refresh")}
@@ -117,7 +117,7 @@ export default function CopyPage() {
                 ))}
               </div>
             )}
-            <p className="mt-3 text-[11px] text-tertiary">
+            <p className="mt-3 text-[12px] text-tertiary">
               {L(
                 "本页不展示收益率 / 回撤 / 胜率 / TVL：链上没有价格或业绩字段，这些数字需要另建价格数据管道。Aegis 记录的是「这次决策能否被 challenger 独立重推导出相同结论」。",
                 "No returns / drawdown / win-rate / TVL here: there are no price or performance fields on-chain; those numbers would need a separate price pipeline. What Aegis records is whether a challenger can independently re-derive the same verdict for a decision."
@@ -145,7 +145,7 @@ function TradeRow({ r }: { r: ExecStatsRow }) {
             ? `${L("已背书 · 同意", "attested · agree")} (response=${v.response})`
             : `${L("已背书 · 拒绝", "attested · reject")} (response=${v.response})`}
           {v.validator && v.validator !== "0x0000000000000000000000000000000000000000" && (
-            <span className="ml-1.5 mono text-[10px] text-tertiary">{shortAddr(v.validator)}</span>
+            <span className="ml-1.5 mono text-[12px] text-tertiary">{shortAddr(v.validator)}</span>
           )}
         </span>
       ) : v.requested ? (

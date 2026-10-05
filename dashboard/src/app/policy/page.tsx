@@ -74,7 +74,7 @@ export default function PolicyPage() {
                 ? L("链上认证值与策略文件一致", "On-chain attested value matches the policy file")
                 : L("链上认证值与策略文件不一致 —— challenger 会拒绝该 agent 的所有收据", "Mismatch — the challenger will reject every receipt for this agent")}
           </div>
-          <div className="mt-2 space-y-1 text-[11px] text-tertiary">
+          <div className="mt-2 space-y-1 text-[12px] text-tertiary">
             <div className="mono break-all">
               {L("链上 on-chain", "on-chain")}: {st.onChainGuardrailHash}
             </div>
@@ -88,7 +88,7 @@ export default function PolicyPage() {
               {L("收据注册表", "receipt registry")}: {st.registry}
             </div>
           </div>
-          <div className="mt-2 text-[11px] leading-relaxed text-muted">{st.note}</div>
+          <div className="mt-2 text-[12px] leading-relaxed text-muted">{st.note}</div>
 
           {pol && !inSync && (
             <div className="mt-3">
@@ -113,7 +113,7 @@ export default function PolicyPage() {
         {/* 链上权威边界（读 /api/vault + /api/policy） */}
         <div className="card space-y-3 p-5">
           <div className="text-sm font-medium">{L("链上强制边界（真实读数）", "On-chain enforced bounds (live reads)")}</div>
-          <div className="text-[11px] leading-relaxed text-muted">
+          <div className="text-[12px] leading-relaxed text-muted">
             {L(
               "这两条是金库合约里的硬约束，越界由合约 revert，不依赖任何前端。",
               "These two are hard contract constraints; out-of-bounds reverts on-chain, independent of any frontend."
@@ -142,30 +142,30 @@ export default function PolicyPage() {
               <Row k={L("每日限额", "daily limit")} v={pol.dailyLimit ? `${Number(pol.dailyLimit) / 1e18} MON` : "—"} />
               <Row k={L("最大滑点", "max slippage")} v={`${pol.maxSlippageBps} bps`} />
               <div className="pt-1">
-                <div className="mb-1 text-[11px] text-tertiary">{L("允许标的", "allowed assets")}</div>
+                <div className="mb-1 text-[12px] text-tertiary">{L("允许标的", "allowed assets")}</div>
                 <div className="flex flex-wrap gap-1.5">
                   {pol.allowedAssets.map((a) => (
-                    <span key={a} className="mono rounded border border-border-subtle bg-input px-1.5 py-0.5 text-[10px] text-secondary">
+                    <span key={a} className="mono rounded border border-border-subtle bg-input px-1.5 py-0.5 text-[12px] text-secondary">
                       {a}
                     </span>
                   ))}
                 </div>
               </div>
               <div className="pt-1">
-                <div className="mb-1 text-[11px] text-tertiary">{L("白名单地址", "whitelisted targets")}</div>
+                <div className="mb-1 text-[12px] text-tertiary">{L("白名单地址", "whitelisted targets")}</div>
                 <div className="space-y-0.5">
                   {pol.whitelist.map((w) => (
-                    <div key={w} className="mono break-all text-[10px] text-muted">
+                    <div key={w} className="mono break-all text-[12px] text-muted">
                       {w}
                     </div>
                   ))}
                 </div>
               </div>
               <div className="pt-1">
-                <div className="mb-1 text-[11px] text-tertiary">{L("注入黑名单（护栏子串）", "Injection blocklist")}</div>
+                <div className="mb-1 text-[12px] text-tertiary">{L("注入黑名单（护栏子串）", "Injection blocklist")}</div>
                 <div className="flex flex-wrap gap-1.5">
                   {pol.blocklist.map((b) => (
-                    <span key={b} className="mono rounded border border-red/30 bg-red/5 px-1.5 py-0.5 text-[10px] text-red">
+                    <span key={b} className="mono rounded border border-red/30 bg-red/5 px-1.5 py-0.5 text-[12px] text-red">
                       {b}
                     </span>
                   ))}
@@ -179,7 +179,7 @@ export default function PolicyPage() {
       {/* 为什么没有"编辑策略内容"的表单 */}
       <div className="card mt-4 p-5">
         <div className="mb-2 text-sm font-medium">{L("为什么这里不能直接改策略内容", "Why you cannot edit policy content here")}</div>
-        <div className="space-y-2 text-[11px] leading-relaxed text-tertiary">
+        <div className="space-y-2 text-[12px] leading-relaxed text-tertiary">
           <p>
             {L(
               "策略内容（限额/白名单/黑名单）存放在 challenger 侧自己的文件 challenger-policy-<id>.json 里，由独立进程持有。本进程是 proposer，对那个文件没有写接口——这是角色分离的一部分：proposer 能改 challenger 的策略，就等于 challenger 不再独立。",

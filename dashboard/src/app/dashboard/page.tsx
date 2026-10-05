@@ -17,8 +17,9 @@ export default function DashboardPage() {
   const s = useAgentStatus(1n);
   const { receipts, live, loading } = useReceipts(1);
   const { vault, fetched: vaultFetched } = useVault();
-  const status = !s || !s.online ? "ok" : !s.alive ? "frozen" : !s.fresh ? "stale" : "ok";
-  const statusEmoji = status === "ok" ? "🟢" : status === "stale" ? "⚠️" : "🥶";
+  // orchestrator 不可达时**不能**报"正常"——没有读数就没有"健康"可言（此前会显示 🟢 正常）。
+  const status = !s || !s.online ? "offline" : !s.alive ? "frozen" : !s.fresh ? "stale" : "ok";
+  const statusEmoji = status === "ok" ? "🟢" : status === "offline" ? "⚪" : status === "stale" ? "⚠️" : "🥶";
 
   const tradeCount = receipts.filter((r) => !r.isHeartbeat).length;
   const heartbeatCount = receipts.filter((r) => r.isHeartbeat).length;
@@ -64,7 +65,7 @@ export default function DashboardPage() {
             <div className="mb-3 flex items-center gap-2 text-sm">
               <span className="h-2 w-2 rounded-full bg-green dot-pulse" />
               {t("dash.receiptStream")}
-              <span className={`ml-auto text-[11px] ${live ? "text-green" : "text-amber"}`}>
+              <span className={`ml-auto text-[12px] ${live ? "text-green" : "text-amber"}`}>
                 {live ? L("链上", "on-chain") : loading ? L("读取中", "loading") : L("离线", "offline")}
               </span>
             </div>
@@ -83,12 +84,12 @@ export default function DashboardPage() {
           <div className="card p-4">
             <div className="mb-2 flex items-center gap-2 text-sm">
               {t("dash.hashChain")}
-              <span className="ml-auto text-[11px] text-muted">
+              <span className="ml-auto text-[12px] text-muted">
                 {L(`交易 ${tradeCount} · 心跳 ${heartbeatCount}`, `${tradeCount} trades · ${heartbeatCount} heartbeats`)}
               </span>
             </div>
             <HashChain receipts={receipts} />
-            <div className="mt-2 flex gap-4 text-[11px] text-muted">
+            <div className="mt-2 flex gap-4 text-[12px] text-muted">
               <Legend className="bg-cyan" label="交易" />
               <Legend className="border border-muted" label="心跳" />
               <Legend className="bg-red" label="拒绝" />

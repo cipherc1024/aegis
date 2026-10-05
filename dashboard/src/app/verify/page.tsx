@@ -72,7 +72,7 @@ export default function VerifyPage() {
                   <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone}`} />
                   <div className="min-w-0">
                     <div className="text-sm">{L(c.labelZh, c.labelEn)}</div>
-                    <div className="mono text-[11px] text-muted">{c.detail}</div>
+                    <div className="mono text-[12px] text-muted">{c.detail}</div>
                   </div>
                   <span className={`mono ml-auto text-xs ${tone}`}>
                     {c.state === "pass" ? "OK" : c.state === "fail" ? "FAIL" : "N/A"}
@@ -82,7 +82,7 @@ export default function VerifyPage() {
             })}
           </div>
 
-          <div className="mt-5 rounded-lg bg-input px-3 py-2 text-center text-[11px] text-muted">
+          <div className="mt-5 rounded-lg bg-input px-3 py-2 text-center text-[12px] text-muted">
             {L(
               "全部验证在你的浏览器本地完成 · 数据源：Monad RPC · 无需信任 Aegis 的任何服务器",
               "All checks run locally in your browser · source: Monad RPC · zero trust in any Aegis server"

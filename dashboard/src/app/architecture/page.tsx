@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useL } from "@/lib/i18n";
 import { useOrch } from "@/lib/useOrch";
 import { api, type AegisConfig, type LiveStatus } from "@/lib/aegis";
-import { SNAPSHOT_CONTRACTS, SNAPSHOT_DEVICES } from "@/lib/snapshot";
+import { SNAPSHOT_CONTRACTS, SNAPSHOT_DEVICES, SNAPSHOT_KEY_CONCENTRATION } from "@/lib/snapshot";
 import { shortAddr } from "@/lib/mock";
 
 import {
@@ -55,6 +55,9 @@ export default function ArchitecturePage() {
   // 页面因此显示缺省值并标注来源，而不是把整块留白。
   const offline = cfgFetched && !cfg;
   const devices = cfg?.trustBoundary.devices ?? SNAPSHOT_DEVICES;
+  // 密钥集中度披露：与 /api/config 的 trustBoundary.keyConcentration 同文本，
+  // 离线时回退到 snapshot 常量（不允许弱化）。
+  const kc = cfg?.trustBoundary.keyConcentration ?? SNAPSHOT_KEY_CONCENTRATION;
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -90,7 +93,7 @@ export default function ArchitecturePage() {
           <ShieldCheck className="h-4 w-4 text-cyan" />
           {L("信任边界：谁握着什么", "Trust boundary: who holds what")}
           {offline ? (
-            <span className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[9px] text-amber">
+            <span className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[11px] text-amber">
               {L("缺省常量", "fallback constants")}
             </span>
           ) : null}
@@ -99,21 +102,31 @@ export default function ArchitecturePage() {
           {devices.map((d) => (
             <div key={d.role} className="rounded-lg border border-border-base bg-input p-3">
               <div className="text-sm">{d.name}</div>
-              <div className="mono mt-1 text-[10px] text-muted">{d.role}</div>
-              <div className="mt-2 text-[11px] leading-relaxed text-tertiary">{d.note}</div>
+              <div className="mono mt-1 text-[12px] text-muted">{d.role}</div>
+              <div className="mt-2 text-[12px] leading-relaxed text-tertiary">{d.note}</div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {d.holds.length ? (
                   d.holds.map((h) => (
-                    <span key={h} className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[10px] text-amber">
+                    <span key={h} className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[12px] text-amber">
                       {L("持有", "holds")} {h}
                     </span>
                   ))
                 ) : (
-                  <span className="mono rounded border border-border-base px-1.5 py-0.5 text-[10px] text-muted">{L("无私钥", "no key")}</span>
+                  <span className="mono rounded border border-border-base px-1.5 py-0.5 text-[12px] text-muted">{L("无私钥", "no key")}</span>
                 )}
               </div>
             </div>
           ))}
+        </div>
+
+        {/* 密钥集中度：如实披露「谁单独就能提空金库」，与上面三张角色卡并列展示，
+            避免读者从「三方」推出「任一方单独作恶都不成立」这个错误结论。 */}
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber/40 bg-amber/5 p-3">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" />
+          <div className="text-[12px] leading-relaxed text-secondary">
+            <span className="mr-1 font-medium text-amber">{L("密钥现状（如实披露）", "Key concentration (disclosed as-is)")}</span>
+            {L(kc.zh, kc.en)}
+          </div>
         </div>
       </div>
 
@@ -123,7 +136,7 @@ export default function ArchitecturePage() {
           <Cpu className="h-4 w-4 text-cyan" />
           {L("单笔决策的完整路径", "The full path of one decision")}
         </div>
-        <div className="mb-4 text-[11px] text-tertiary">
+        <div className="mb-4 text-[12px] text-tertiary">
           {L(
             "图中虚线以上都在 TEE 之外（proposer 侧），虚线以下才是 TEE + 链上。这是刻意的：安全性不依赖「模型在 TEE 里」。",
             "Everything above the dashed line runs outside the TEE (proposer side); below it is the TEE and the chain. This is deliberate: security does not depend on the model being inside the TEE."
@@ -135,14 +148,14 @@ export default function ArchitecturePage() {
               {s.boundary ? (
                 <div className="my-3 flex items-center gap-3">
                   <div className="h-px flex-1 border-t border-dashed border-amber/40" />
-                  <span className="mono text-[10px] text-amber">{L("TEE 信任边界", "TEE trust boundary")}</span>
+                  <span className="mono text-[12px] text-amber">{L("TEE 信任边界", "TEE trust boundary")}</span>
                   <div className="h-px flex-1 border-t border-dashed border-amber/40" />
                 </div>
               ) : null}
               <div className="flex gap-3">
                 <div className="flex flex-col items-center">
                   <div
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] ${
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] ${
                       s.outside ? "bg-purple/15 text-purple" : "bg-cyan/15 text-cyan"
                     }`}
                   >
@@ -153,11 +166,11 @@ export default function ArchitecturePage() {
                 <div className="min-w-0 pb-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm">{L(s.zh, s.en)}</span>
-                    <span className={`mono rounded px-1.5 py-0.5 text-[9px] ${s.outside ? "bg-purple/10 text-purple" : "bg-cyan/10 text-cyan"}`}>
+                    <span className={`mono rounded px-1.5 py-0.5 text-[11px] ${s.outside ? "bg-purple/10 text-purple" : "bg-cyan/10 text-cyan"}`}>
                       {s.outside ? L("TEE 之外", "outside TEE") : L("TEE / 链上", "TEE / on-chain")}
                     </span>
                   </div>
-                  <div className="mono mt-0.5 text-[11px] text-muted">{s.d}</div>
+                  <div className="mono mt-0.5 text-[12px] text-muted">{s.d}</div>
                 </div>
               </div>
             </div>
@@ -190,7 +203,7 @@ export default function ArchitecturePage() {
             <Cpu className="h-4 w-4 text-purple" />
             {L("模型与地址（来自 /api/config）", "Models and addresses (from /api/config)")}
             {offline ? (
-              <span className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[9px] text-amber">
+              <span className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[11px] text-amber">
                 {L("地址为缺省常量", "addresses are fallback constants")}
               </span>
             ) : null}
@@ -293,7 +306,7 @@ function NegativePanel() {
         <Ban className="h-4 w-4 text-red" />
         {L("负例回归：11 个攻击向量是否全部被拒", "Negative regression: are all 11 attack vectors rejected?")}
       </div>
-      <div className="mb-4 text-[11px] text-tertiary">
+      <div className="mb-4 text-[12px] text-tertiary">
         {L(
           "点一次就是用真实 /api/verify 打 11 组输入：10 组断言「proposer 预览」与「challenger 独立重推导」都拒绝且一致；「未知标的」在 δ 之前就被管线拒绝（模型无法解析到白名单，challenger 无从重推导），单独判定。零 gas，不写链。",
           "One click runs 11 inputs through the real /api/verify: 10 assert that the proposer preview and the challenger's independent re-derivation both reject AND agree; the unknown-asset case is refused by the pipeline before δ (the model can't resolve it to the whitelist, so there's nothing to re-derive) and is asserted separately. Zero gas, no chain writes."
@@ -309,9 +322,9 @@ function NegativePanel() {
           {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
           {L("跑 11 个负例", "Run 11 negatives")}
         </button>
-        {running ? <span className="mono text-[11px] text-tertiary">{prog}/{NEGATIVES.length}</span> : null}
+        {running ? <span className="mono text-[12px] text-tertiary">{prog}/{NEGATIVES.length}</span> : null}
         {!cfg && !running ? (
-          <span className="text-[11px] text-muted">
+          <span className="text-[12px] text-muted">
             {L(
               "需要 orchestrator 的 /api/config（策略目标址从哪里读）。静态导出下本按钮不可用：11 个负例要打真实的 /api/verify，静态页面没有服务端可打。",
               "needs orchestrator's /api/config (source of the policy target). Unavailable in the static export: the 11 negatives hit the real /api/verify, which a static page has no server to call."
@@ -319,7 +332,7 @@ function NegativePanel() {
           </span>
         ) : null}
         {rows && !running ? (
-          <span className={`flex items-center gap-1.5 text-[11px] ${allOk ? "text-green" : "text-red"}`}>
+          <span className={`flex items-center gap-1.5 text-[12px] ${allOk ? "text-green" : "text-red"}`}>
             {allOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
             {allOk
               ? L("全部被拒且两侧一致", "all rejected, both sides agree")
@@ -340,11 +353,11 @@ function NegativePanel() {
             return (
               <div key={n.en} className="flex items-center gap-2 border-b border-border-subtle py-1.5 last:border-0">
                 {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green" /> : <XCircle className="h-3.5 w-3.5 shrink-0 text-red" />}
-                <span className="min-w-0 flex-1 truncate text-[11px]">{L(n.zh, n.en)}</span>
-                <span className="mono shrink-0 text-[10px] text-muted">{L("期望", "expect")} {n.expect}</span>
-                <span className={`mono shrink-0 text-[10px] ${r.p === "reject" ? "text-green" : "text-red"}`}>p={r.p}</span>
+                <span className="min-w-0 flex-1 truncate text-[12px]">{L(n.zh, n.en)}</span>
+                <span className="mono shrink-0 text-[12px] text-muted">{L("期望", "expect")} {n.expect}</span>
+                <span className={`mono shrink-0 text-[12px] ${r.p === "reject" ? "text-green" : "text-red"}`}>p={r.p}</span>
                 <span
-                  className={`mono shrink-0 text-[10px] ${
+                  className={`mono shrink-0 text-[12px] ${
                     refused ? "text-muted" : r.c === "reject" ? "text-green" : "text-red"
                   }`}
                 >
@@ -356,11 +369,11 @@ function NegativePanel() {
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-center gap-2 text-[11px]">
+      <div className="mt-4 flex items-center gap-2 text-[12px]">
         <GitCompareArrows className="h-3.5 w-3.5 text-cyan" />
         <span className="text-tertiary">{L("命令行同款回归", "Same regression from the CLI")}:</span>
-        <code className="mono rounded bg-input px-1.5 py-0.5 text-[10px] text-secondary">node scripts/d6-negative.mjs</code>
-        <code className="mono rounded bg-input px-1.5 py-0.5 text-[10px] text-secondary">node scripts/parity-check.mjs</code>
+        <code className="mono rounded bg-input px-1.5 py-0.5 text-[12px] text-secondary">node scripts/d6-negative.mjs</code>
+        <code className="mono rounded bg-input px-1.5 py-0.5 text-[12px] text-secondary">node scripts/parity-check.mjs</code>
       </div>
     </div>
   );

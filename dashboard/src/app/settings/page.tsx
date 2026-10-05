@@ -48,7 +48,7 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => void load()}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-border-base px-2.5 py-1 text-[11px] text-tertiary hover:border-border-hover hover:text-secondary"
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-border-base px-2.5 py-1 text-[12px] text-tertiary hover:border-border-hover hover:text-secondary"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
           {L("刷新", "refresh")}
@@ -106,7 +106,7 @@ export default function SettingsPage() {
                 value={st ? (st.fresh ? L("新鲜", "fresh") : L("陈旧", "stale")) : "—"}
                 tone={st ? (st.fresh ? "text-green" : "text-amber") : ""}
               />
-              <p className="mt-3 text-[11px] text-tertiary">
+              <p className="mt-3 text-[12px] text-tertiary">
                 {L(
                   "本页不放「连接/断开钱包」按钮：dashboard 是只读渲染器，不持有任何密钥，也从不代表你签名。需要动钱的操作走运营页的二次确认（owner 私钥在 orchestrator 侧）。",
                   "There is no connect/disconnect wallet button here: the dashboard is a read-only renderer, holds no keys, and never signs on your behalf. Money-moving actions go through the two-phase confirm on the operations pages (owner key lives on the orchestrator side)."
@@ -120,7 +120,7 @@ export default function SettingsPage() {
               <Field label={L("语言", "Language")}>
                 <LangSelect />
               </Field>
-              <p className="mt-3 text-[11px] text-tertiary">
+              <p className="mt-3 text-[12px] text-tertiary">
                 {L(
                   "语言是真实生效的设置（i18n store，仅存于本地浏览器）。其余偏好项（显示哈希全文、紧凑列表）尚无实现，故不提供开关。",
                   "Language is a real setting (i18n store, browser-local). Other preferences (full hashes, compact lists) are not implemented, so no toggles are offered."
@@ -135,7 +135,7 @@ export default function SettingsPage() {
               <Row label={L("邮件", "Email")} value={L("未实现", "not implemented")} tone="text-tertiary" />
               <Row label={L("Telegram", "Telegram")} value={L("未实现", "not implemented")} tone="text-tertiary" />
               <Row label={L("Webhook", "Webhook")} value={L("未实现", "not implemented")} tone="text-tertiary" />
-              <p className="mt-3 text-[11px] text-tertiary">
+              <p className="mt-3 text-[12px] text-tertiary">
                 {L(
                   "Aegis 目前不发送任何外部通知：没有邮件/Telegram/Webhook 的发信后端。真实可用的实时信号是 orchestrator 的 SSE 事件流（/api/events），通知页即消费它。",
                   "Aegis sends no external notifications today: there is no email/Telegram/Webhook delivery backend. The real-time signal available is the orchestrator SSE stream (/api/events), which the notifications page consumes."
@@ -160,7 +160,7 @@ export default function SettingsPage() {
                 value={llm ? (llm.crossFamily ? llm.challengerModel ?? "—" : L("未启用", "disabled")) : "—"}
                 tone={llm?.crossFamily ? "text-cyan" : "text-tertiary"}
               />
-              <p className="mt-3 text-[11px] text-tertiary">
+              <p className="mt-3 text-[12px] text-tertiary">
                 {L(
                   "这些值全部由链上合约与 orchestrator 进程决定，dashboard 无法修改（也无「导出私钥」这类入口——私钥不在浏览器侧）。改策略走策略编辑器页；改限额走 owner 治理流程。",
                   "All of these are decided by the on-chain contracts and the orchestrator process; the dashboard cannot change them (and there is no 'export private key' entry — keys are never in the browser). Change policy on the Policy Editor page; change limits via the owner governance flow."
@@ -171,7 +171,7 @@ export default function SettingsPage() {
                   href={`${EXPLORER}/address/${cfg.contracts.vaultQuorum}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-cyan hover:underline"
+                  className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-cyan hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" />
                   {L("在区块浏览器核验金库地址", "Verify vault address on explorer")}

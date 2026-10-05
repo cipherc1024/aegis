@@ -5,7 +5,7 @@ import type { AgentStatus } from "./layout/Sidebar";
 import type { VaultState } from "@/lib/aegis";
 import { useT, useL } from "@/lib/i18n";
 import { fmtMon } from "./ConfirmTx";
-import { CheckCircle2, AlertTriangle, Snowflake, Lock } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Snowflake, Lock, HelpCircle } from "lucide-react";
 
 export function SafetyPanel({
   status,
@@ -21,25 +21,27 @@ export function SafetyPanel({
   const t = useT();
   const L = useL();
 
-  // 四项检查全部来自真实读数，不再有硬编码 true
+  // 四项检查全部来自真实读数，不再有硬编码 true。
+  // 离线时一律不显示 OK：没有读数 == 无法断言任何一项（"ok" 只可能来自真实读数通过）。
   const checks = [
-    { key: "safety.freshness", ok: status === "ok", detail: null as string | null },
-    { key: "safety.alive", ok: status !== "frozen", detail: null },
+    { key: "safety.freshness", ok: status === "ok", detail: status === "offline" ? L("无读数", "no data") : null as string | null },
+    { key: "safety.alive", ok: status === "ok" || status === "stale", detail: status === "offline" ? L("无读数", "no data") : null },
     {
       key: "safety.chain",
       ok: vault?.configured === true,
-      detail: vault?.configured ? `agentId ${vault.agentId}` : null,
+      detail: vault?.configured ? `agentId ${vault.agentId}` : vaultFetched ? L("无读数", "no data") : null,
     },
     {
       key: "safety.dcap",
       ok: (vault?.trustedValidatorCount ?? 0) > 0,
-      detail: vault ? `${L("验证者", "validators")} ${vault.trustedValidatorCount}` : null,
+      detail: vault ? `${L("验证者", "validators")} ${vault.trustedValidatorCount}` : vaultFetched ? L("无读数", "no data") : null,
     },
   ];
 
-  const StatusIcon = status === "ok" ? CheckCircle2 : status === "stale" ? AlertTriangle : Snowflake;
+  const StatusIcon =
+    status === "ok" ? CheckCircle2 : status === "stale" ? AlertTriangle : status === "offline" ? HelpCircle : Snowflake;
   const statusTone =
-    status === "ok" ? "text-green" : status === "stale" ? "text-amber" : "text-red";
+    status === "ok" ? "text-green" : status === "stale" ? "text-amber" : status === "offline" ? "text-muted" : "text-red";
 
   const perTxPct = vault && Number(vault.perTxLimit) > 0
     ? Math.min(1, Number(vault.perTxLimit) / Number(vault.dailyLimit || vault.perTxLimit))
@@ -68,7 +70,7 @@ export function SafetyPanel({
       </div>
 
       <div className="mt-5 space-y-3">
-        <div className="flex items-center justify-between text-[11px]">
+        <div className="flex items-center justify-between text-[12px]">
           <span className="text-muted">{t("dash.perTx")} / {t("dash.daily")}</span>
           {!vaultFetched && <span className="text-muted">{L("读取中", "loading")}</span>}
           {vaultFetched && !vault && <span className="text-amber">{L("离线", "offline")}</span>}
@@ -124,7 +126,7 @@ function Bar({
   const pct = Math.min(100, Math.round(value * 100));
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-[11px] text-tertiary">
+      <div className="mb-1 flex items-center justify-between text-[12px] text-tertiary">
         <span>{label}</span>
         <span className="mono">{right}</span>
       </div>

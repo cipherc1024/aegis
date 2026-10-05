@@ -3,16 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV } from "@/lib/nav";
+import { useL } from "@/lib/i18n";
+import { STATUS_META, type AgentStatus } from "@/lib/agentStatus";
 import { Shield, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-export type AgentStatus = "ok" | "stale" | "frozen" | "offline";
-
-const STATUS_META: Record<AgentStatus, { label: string; color: string; dot: string }> = {
-  ok: { label: "正常", color: "text-green", dot: "bg-green dot-pulse" },
-  stale: { label: "收据不新鲜", color: "text-amber", dot: "bg-amber dot-pulse-fast" },
-  frozen: { label: "已冻结", color: "text-red", dot: "bg-red" },
-  offline: { label: "链上不可达", color: "text-muted", dot: "bg-muted" },
-};
+export type { AgentStatus };
 
 export function Sidebar({
   collapsed,
@@ -26,6 +21,7 @@ export function Sidebar({
   currentBlock: number | null;
 }) {
   const pathname = usePathname();
+  const L = useL();
   const meta = STATUS_META[status];
 
   return (
@@ -46,13 +42,13 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* Nav */}
+      {/* Nav：分组名与条目都走 L()，此前英文模式下导航仍是中文 */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         {NAV.map((group) => (
           <div key={group.label} className="mb-3">
             {!collapsed && (
-              <div className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted">
-                {group.label}
+              <div className="px-2 pb-1 text-[12px] font-medium uppercase tracking-wider text-muted">
+                {L(group.label, group.labelEn)}
               </div>
             )}
             {group.items.map((item) => {
@@ -62,7 +58,7 @@ export function Sidebar({
                 <Link
                   key={item.key}
                   href={item.href}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? L(item.label, item.labelEn) : undefined}
                   className={`group mb-0.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
                     active ? "bg-hover text-primary" : "text-secondary hover:bg-hover hover:text-primary"
                   }`}
@@ -70,9 +66,9 @@ export function Sidebar({
                   <Icon className={`h-4 w-4 shrink-0 ${active ? "text-cyan" : ""}`} />
                   {!collapsed && (
                     <>
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate">{L(item.label, item.labelEn)}</span>
                       {item.badge && (
-                        <span className="ml-auto rounded-md bg-input px-1.5 py-0.5 text-[10px] text-muted">
+                        <span className="ml-auto rounded-md bg-input px-1.5 py-0.5 text-[12px] text-muted">
                           {item.badge}
                         </span>
                       )}
@@ -85,14 +81,14 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* Status badge */}
-      <div className="border-t border-border-subtle p-3">
+      {/* 状态徽章：判据与文案来自 lib/agentStatus.ts，与顶栏共用同一份 */}
+      <div className="border-t border-border-subtle p-3" title={meta.hint}>
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
           {!collapsed && (
             <div className="min-w-0">
-              <div className={`text-xs font-medium ${meta.color}`}>{meta.label}</div>
-              <div className="mono truncate text-[10px] text-muted">
+              <div className={`text-xs font-medium ${meta.color}`}>{L(meta.label, meta.labelEn)}</div>
+              <div className="mono truncate text-[12px] text-muted">
                 block #{currentBlock ? currentBlock.toLocaleString() : "—"}
               </div>
             </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useL, useLink } from "@/lib/i18n";
 import { useOrch } from "@/lib/useOrch";
 import { api, type AegisConfig, type LiveStatus } from "@/lib/aegis";
-import { SNAPSHOT_DEVICES } from "@/lib/snapshot";
+import { SNAPSHOT_DEVICES, SNAPSHOT_KEY_CONCENTRATION } from "@/lib/snapshot";
 import { shortAddr } from "@/lib/mock";
 import {
   ShieldCheck,
@@ -32,6 +32,9 @@ export default function LandingPage() {
 
   const live = Boolean(st?.online);
   const teeing = Boolean(cfg?.contracts.quoteService);
+  // 密钥集中度披露：服务端下发优先，离线/旧服务端回退到 snapshot 的同文本常量。
+  // 这段是刻意的自我披露，不允许回退成"更好听的版本"。
+  const kc = cfg?.trustBoundary.keyConcentration ?? SNAPSHOT_KEY_CONCENTRATION;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -39,7 +42,7 @@ export default function LandingPage() {
       <section className="py-14 text-center">
         <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border-base bg-card px-3 py-1 text-xs text-secondary">
           <ShieldCheck className="h-3.5 w-3.5 text-cyan" />
-          {L("Monad Metropolis · Track 04 · 基于 TEE 的可验证自主交易 Agent", "Monad Metropolis · Track 04 · TEE-attested autonomous trading agent")}
+          {L("Monad Metropolis · Trust, Identity & AI Infrastructure · 基于 TEE 的可验证自主交易 Agent", "Monad Metropolis · Trust, Identity & AI Infrastructure · TEE-attested autonomous trading agent")}
         </div>
         <h1 className="bg-gradient-to-r from-primary to-cyan bg-clip-text text-5xl font-semibold tracking-tight text-transparent">
           {L("Agent 必须证明它听话了。", "The agent must prove it obeyed.")}
@@ -111,12 +114,12 @@ export default function LandingPage() {
                 <span className="text-sm font-medium text-red">{x.t}</span>
                 <ArrowRight className="h-3.5 w-3.5 text-muted group-hover:text-cyan" />
               </div>
-              <div className="mt-1 text-[11px] text-tertiary">{x.d}</div>
-              <div className="mono mt-2 truncate text-[10px] text-muted">{x.c}</div>
+              <div className="mt-1 text-[12px] text-tertiary">{x.d}</div>
+              <div className="mono mt-2 truncate text-[12px] text-muted">{x.c}</div>
             </Link>
           ))}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted">
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px] text-muted">
           <span className="mono">{L("当前待跑：", "queued: ")}</span>
           <span className="mono truncate text-secondary">{cmd}</span>
           {md ? <span className="mono truncate text-muted">+ marketData</span> : null}
@@ -132,8 +135,13 @@ export default function LandingPage() {
           tone={live ? "text-green" : "text-muted"}
           sub={
             live
-              ? L(`Monad 区块 ${st?.currentBlock.toLocaleString()}`, `Monad block ${st?.currentBlock.toLocaleString()}`)
-              : L("orchestrator 未启动（见 README 运行步骤）", "orchestrator not running (see README)")
+              ? st?.degraded
+                ? L(
+                    `读数降级：本次链上读失败（RPC 抖动），以下为上次已知值 · 块 ${st?.currentBlock.toLocaleString()}`,
+                    `Degraded read: this on-chain read failed (RPC hiccup); values below are last-known · block ${st?.currentBlock.toLocaleString()}`
+                  )
+                : L(`Monad 区块 ${st?.currentBlock.toLocaleString()}`, `Monad block ${st?.currentBlock.toLocaleString()}`)
+              : L("读不到 proposer 服务（未启动，或网络不可达）", "cannot reach the proposer service (not running, or unreachable)")
           }
         />
         <LiveCard
@@ -174,28 +182,28 @@ export default function LandingPage() {
       {/* 信任边界：把"谁握着什么"摊开讲。这是本项目的核心卖点，必须直白 */}
       <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
         <div className="card p-5">
-          <div className="mb-3 text-sm font-medium">{L("信任边界（三方分权，任一方单独作恶都不成立）", "Trust boundary (three-way split — no single party can act alone)")}</div>
+          <div className="mb-3 text-sm font-medium">{L("信任边界：执行需两方一致（TEE 签名 + 独立 challenger 背书）", "Trust boundary: execution needs two parties to agree (TEE signature + independent challenger endorsement)")}</div>
           <div className="space-y-3">
             {(cfg?.trustBoundary.devices ?? FALLBACK_DEVICES).map((d, i) => (
               <div key={d.role} className="flex gap-3">
                 <div className="flex flex-col items-center">
-                  <div className="mono flex h-6 w-6 items-center justify-center rounded-full bg-cyan/15 text-[11px] text-cyan">
+                  <div className="mono flex h-6 w-6 items-center justify-center rounded-full bg-cyan/15 text-[12px] text-cyan">
                     {i + 1}
                   </div>
                   {i < (cfg?.trustBoundary.devices ?? FALLBACK_DEVICES).length - 1 && <div className="my-1 h-full w-px bg-border-base" />}
                 </div>
                 <div className="min-w-0 pb-1">
                   <div className="text-sm">{d.name}</div>
-                  <div className="mt-0.5 text-[11px] text-tertiary">{d.note}</div>
+                  <div className="mt-0.5 text-[12px] text-tertiary">{d.note}</div>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {d.holds.length ? (
                       d.holds.map((h) => (
-                        <span key={h} className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[10px] text-amber">
+                        <span key={h} className="mono rounded border border-amber/30 bg-amber/5 px-1.5 py-0.5 text-[12px] text-amber">
                           {L("持有", "holds")} {h}
                         </span>
                       ))
                     ) : (
-                      <span className="mono rounded border border-border-base px-1.5 py-0.5 text-[10px] text-muted">
+                      <span className="mono rounded border border-border-base px-1.5 py-0.5 text-[12px] text-muted">
                         {L("无私钥", "no key")}
                       </span>
                     )}
@@ -204,7 +212,11 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <p className="mt-4 rounded-lg bg-input px-3 py-2 text-[11px] leading-relaxed text-tertiary">
+          <p className="mt-4 rounded-lg border border-amber/40 bg-amber/5 px-3 py-2 text-[12px] leading-relaxed text-secondary">
+            <span className="mr-1 font-medium text-amber">{L("密钥现状（如实披露）", "Key concentration (disclosed as-is)")}</span>
+            {L(kc.zh, kc.en)}
+          </p>
+          <p className="mt-4 rounded-lg bg-input px-3 py-2 text-[12px] leading-relaxed text-tertiary">
             {L(
               "注意：LLM 跑在 TEE 之外。这不是妥协——判据是确定性谓词 δ（护栏 + PACE），而不是「模型在 TEE 里」。威胁模型本就假设模型完全可被操纵，challenger 用自己的代码独立重推导同一结论（单向零依赖；另有可选的跨家族模型交叉挑战层，默认关闭）。",
               "Note: the LLM runs outside the TEE — by design, not by compromise. The guarantee is the deterministic predicate δ (guardrail + PACE), not \"the model is inside the TEE\". The threat model already assumes the model is fully adversarially controlled; the challenger re-derives the same conclusion with its own code (one-way zero dependency; a separate optional cross-family challenge layer is off by default)."
@@ -242,13 +254,15 @@ export default function LandingPage() {
               v={cfg?.contracts.validationRegistry ? shortAddr(cfg.contracts.validationRegistry) : "—"}
               link={cfg?.contracts.validationRegistry ? `https://testnet.monadexplorer.com/address/${cfg.contracts.validationRegistry}` : undefined}
             />
-            <Row k="chainId" v={cfg ? String(cfg.chain.chainId) : "10143"} mono />
+            {/* 离线时显示 "—" 而不是硬编码 10143：本项目自己的硬规则是"端点不可达一律显示离线、
+                绝不回退到看起来像真数据的占位值"，此前这里（以及下面的 chainId）是唯一的例外。 */}
+            <Row k="chainId" v={cfg ? String(cfg.chain.chainId) : "—"} mono />
           </div>
           <div className="mt-4 flex items-center justify-between">
-            <div className="mono truncate text-[10px] text-muted">
+            <div className="mono truncate text-[12px] text-muted">
               {st && st.receiptHash !== ZERO32 ? `${L("链头", "chain head")} ${shortAddr(st.receiptHash)}` : L("链上无收据", "no receipt on chain")}
             </div>
-            <Link href="/receipts" className="flex items-center gap-1 text-[11px] text-cyan hover:underline">
+            <Link href="/receipts" className="flex items-center gap-1 text-[12px] text-cyan hover:underline">
               {L("收据流", "Receipt stream")}
               <ArrowRight className="h-3 w-3" />
             </Link>
@@ -285,7 +299,7 @@ export default function LandingPage() {
           ].map((x) => (
             <div key={x.t}>
               <div className="text-sm text-cyan">{x.t}</div>
-              <div className="mt-1 text-[11px] leading-relaxed text-tertiary">{x.d}</div>
+              <div className="mt-1 text-[12px] leading-relaxed text-tertiary">{x.d}</div>
             </div>
           ))}
         </div>
@@ -315,7 +329,7 @@ function LiveCard({
       {icon}
       <div className={`mt-3 text-2xl font-semibold ${tone}`}>{value}</div>
       <div className="mt-1 text-xs text-tertiary">{label}</div>
-      <div className="mono mt-1.5 truncate text-[10px] text-muted">{sub}</div>
+      <div className="mono mt-1.5 truncate text-[12px] text-muted">{sub}</div>
     </div>
   );
 }
