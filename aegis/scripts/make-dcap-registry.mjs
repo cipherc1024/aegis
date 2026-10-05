@@ -2,8 +2,8 @@
 // network-registry/current/10143/onchain_pccs.json
 import fs from "node:fs";
 
-const SRC = "C:/Users/12190/Desktop/本科二年级/Monad量化/aegis/vendor/on-chain-pccs-repo/deployment/10143.json";
-const DIR = "C:/Users/12190/Desktop/本科二年级/Monad量化/aegis/vendor/dcap-repo/rust-crates/libraries/network-registry/deployment/current/10143";
+const SRC = process.env.PCCS_SRC || "vendor/on-chain-pccs-repo/deployment/10143.json";   // 相对 aegis/ 工作目录
+const DIR = process.env.PCCS_DIR || "vendor/dcap-repo/rust-crates/libraries/network-registry/deployment/current/10143";   // 相对 aegis/ 工作目录
 const OUT = DIR + "/onchain_pccs.json";
 
 const src = JSON.parse(fs.readFileSync(SRC, "utf8"));

@@ -1,6 +1,6 @@
 // 打印 dcap 入口/验证器的相关函数签名
 import fs from "node:fs";
-const OUT = "C:/Users/12190/Desktop/本科二年级/Monad量化/aegis/vendor/dcap-repo/evm/out";
+const OUT = process.env.DCAP_OUT || "vendor/dcap-repo/evm/out";   // 相对 aegis/ 工作目录；可用 DCAP_OUT 覆盖
 for (const n of ["AutomataDcapAttestationFee", "AttestationEntrypointBase", "V4QuoteVerifier"]) {
   const p = `${OUT}/${n}.sol/${n}.json`;
   if (!fs.existsSync(p)) { console.log("missing", n); continue; }

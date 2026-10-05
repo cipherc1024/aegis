@@ -8,7 +8,7 @@ loadEnv();
 const wallet = getWallet();
 const provider = wallet.provider;
 
-const OUT = "C:/Users/12190/Desktop/本科二年级/Monad量化/aegis/vendor/dcap-repo/evm/out";
+const OUT = process.env.DCAP_OUT || "vendor/dcap-repo/evm/out";   // 相对 aegis/ 工作目录；可用 DCAP_OUT 覆盖
 const abi = JSON.parse(fs.readFileSync(`${OUT}/V4QuoteVerifier.sol/V4QuoteVerifier.json`, "utf8")).abi;
 const verifier = "0x0eb496471d638173cdF35bE6b0e54FE035289F1f"; // V4QuoteVerifier
 

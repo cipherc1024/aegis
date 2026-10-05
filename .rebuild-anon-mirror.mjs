@@ -33,8 +33,9 @@ function mirrorDirty() {
 
 // ---- 脱敏规则（按序施加；长的先替换）----
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const ABS_WIN = "C:\\Users\\12190\\Desktop\\本科二年级\\Monad量化\\aegis";
-const ABS_POSIX = "C:/Users/12190/Desktop/本科二年级/Monad量化/aegis";
+const REPO_ROOT = path.dirname(fileURLToPath(import.meta.url));
+const ABS_WIN = path.join(REPO_ROOT, "aegis");
+const ABS_POSIX = ABS_WIN.replace(/\\/g, "/");
 const SCRUBS = [
   // Windows 反斜杠形态（先长后短）
   [new RegExp(esc(ABS_WIN) + "\\\\tee", "g"), ".\\tee"],
@@ -47,13 +48,13 @@ const SCRUBS = [
   // 匿名镜像自身地址同样是可关联句柄，文档中的裸 URL 一并抹掉
   [/cipherCN\/monad/g, "<anonymous-artifact-mirror>"],
 ];
-// 兜底：任何残留的 C:/Users/12190 或 C:\Users\12190 一律报错。
+// 兜底：任何残留的 C:/Users/<用户名> 或 C:\Users\<用户名> 一律报错。
 // ⚠️ 这里必须容忍**重复转义的反斜杠**：JSON.stringify 会把 `\` 写成 `\\`，
-// 于是 JSON 产物里字面存的是 `C:\\Users\\12190`。若模式只写 `[\\/]`（匹配单个
+// 于是 JSON 产物里字面存的是 `C:\\Users\\<用户名>`。若模式只写 `[\\/]`（匹配单个
 // `\` 或 `/`），JSON 里的双反斜杠就永远匹配不到——守卫会静默打印"✅ 无残留"，
 // 而真实用户名已经随产物发布出去（2026-09-22 实测踩中：crossmachine-2of2-attestation.json）。
-// 故用 `[\\/]+` 吞掉任意层数的转义斜杠，并对 `12190` 单独再兜一层。
-const LEAK = /C:[\\/]+Users[\\/]+12190|Users[\\/]+12190|\bDESKTOP-DT6GK2M\b/;
+// 故用 `[\\/]+` 吞掉任意层数的转义斜杠，并对 `<用户名>` 单独再兜一层。
+const LEAK = /C:[\\/]+Users[\\/]+|\bDESKTOP-[A-Z0-9]{7}\b/;
 // 身份线索兜底。
 // 注意：aegis-dev 是镜像自身的**中性提交身份**（git user.name），文档中必须保留，
 // 不得列为泄露——否则重建会因自身合法内容 exit 1。（它是本机 git user.name 的子串，

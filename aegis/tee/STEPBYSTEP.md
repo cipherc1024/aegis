@@ -18,7 +18,7 @@ phala status
 
 ## Step 2 — 进入 tee 目录并部署
 ```powershell
-cd "C:\Users\12190\Desktop\本科二年级\Monad量化\aegis\tee"
+cd aegis/tee
 phala deploy -c docker-compose.yml -n aegis-quote -t tdx.small --wait
 ```
 `--wait` 会阻塞到部署完成。记下输出的 CVM 名称（`aegis-quote`）。
@@ -38,7 +38,7 @@ phala cvms attestation aegis-quote -j > attestation.json
 ## Step 5 — 离链验证（D1 判定点）
 回到 aegis 目录：
 ```powershell
-cd "C:\Users\12190\Desktop\本科二年级\Monad量化\aegis"
+cd aegis
 node scripts/verify-quote.mjs tee/attestation.json
 ```
 期望看到 `status: "UpToDate"`（或 `SWHardeningNeeded` 等合法 TCB 状态）与 `quote bytes: ...`。

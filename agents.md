@@ -10,7 +10,7 @@
 在动手改任何东西前，先确认交接状态真实可用：
 
 ```bash
-# 工作目录：C:\Users\12190\Desktop\本科二年级\Monad量化\aegis
+# 工作目录：<仓库根>\aegis
 npx hardhat compile          # 期望 "evm target: paris"
 npx hardhat test             # 期望 "44 passing"（31 原 + 13 M2/M3）
 node scripts/d6-negative.mjs # 期望 8 项攻击向量全部被拒 + 1 正例通过（真实上链 fresh 合约，~0.15 MON gas，非零成本）
@@ -75,7 +75,7 @@ node scripts/soa-demo.mjs --onchain  # 真实上链版（需 orchestrator+challe
 - [x] **Phase 3 完成（代码侧）**（2026-09-13）：proposer 侧**双 LLM 隔离管线**（`tee-runtime/llm.mjs` + `orchestrator/pipeline.mjs`：隔离 LLM 只抽取 facts/suspicious、无工具权限 → 特权 LLM 只吃「可信指令 + 隔离摘要」产出 typed intent，全程 fail-closed）；**信任边界显式化**（LLM 在 TEE 之外，因模型仅校园网可达 —— 该设计已从论文 P1 推导证明不削弱安全性，见 `..\..\monad论文\A会论文路线图.md` §5）；challenger 新增可选**交叉模型层**（`challenger/llm-challenge.mjs`，`MODEL_CHALLENGE=true` 开启，默认关闭；要求不同家族模型 + temp=0 + 确定性代码裁决，`agree=null` 表示无法裁决→不签发）。**注意命名：此层历史上曾被称作"L5"，现 L5 专指 SOA-lite 目标层，两者不同**；新增 `GET /api/pipeline` 只读预览端点；**语义分歧度量**实验脚本 `scripts/llm-divergence.mjs`（论文 §6 实验 1b，零 gas 离线）
 - [x] **Phase 3 修复的口径漏洞**（重要，3 个真实 bug）：① `orchestrator` 预览护栏**未规范化 text** 就匹配 blocklist → `ev\u200Bil.com` 零宽混淆可绕过（challenger 一直是对的，会制造假性分歧）；② orchestrator `norm` 缺 leetspeak folding → `3vil.com` 两侧结论漂移；③ leet 折叠把 `a11`→`aii` 导致注入正则漏判（两侧同口径修）；④ mock LLM 用 `/ISOLATED/i` 判别分支，而 `PRIVILEGED_SYSTEM` 含 "isolated analyst" 字样 → 特权调用误入隔离分支，mock 路径整体静默失效。**新增 `scripts/parity-check.mjs`** 守住口径：同一批输入分别喂 proposer 预览与 challenger 完整重推导，断言"拒绝与否"一致（当前 21/21 agree，含 7 个目标层用例，漂移即 exit 1）
 - [x] Hardhat 单测 **18/18 通过**（新增 3 个 bindTranscript 用例）；challenger selftest **17/17**（L1–L5）；parity **17/17**（2026-09-17 F2 修复后为 **21/21**，见 §3 待办 9）；Dashboard 构建通过
-- [x] **Phase 3 live 完成**（2026-09-13/14）：真实校园网模型接入（USTC 网关，OpenAI 兼容，key 在 .env）——proposer=deepseek-flash / challenger=glm-5.3-flash（**经网关 token 指纹实测确认不同后端**，`scripts/probe-gateway.mjs`：smart/reasoning/qwen3.6-chat/claude-haiku-4-5 共享同一后端，glm 独立）；live E2E 已实测（网关偶发 503/超时 → fail-closed 返回 refuse，退避重试即可）
+- [x] **Phase 3 live 完成**（2026-09-13/14）：真实校园网模型接入（校园网关，OpenAI 兼容，key 在 .env）——proposer=deepseek-flash / challenger=glm-5.3-flash（**经网关 token 指纹实测确认不同后端**，`scripts/probe-gateway.mjs`：smart/reasoning/qwen3.6-chat/claude-haiku-4-5 共享同一后端，glm 独立）；live E2E 已实测（网关偶发 503/超时 → fail-closed 返回 refuse，退避重试即可）
 - [x] **Phase 4 完成**（2026-09-14）：**真实协议交互路径上线**——重置后 testnet（2025-12-16 genesis reset）无法核实任何第三方 DEX router（Uniswap v2/v3/v4 canonical 地址链上实测 codeLen=0，`scripts/probe-dex.mjs`；Kuru 无法核实），经用户确认以**官方 canonical WMON wrap** 为真实路径：官方文档核实 WMON `0xFb8bf4c1…8541`（链上 codeLen=3249、name/symbol/decimals 读回正确）→ `.env` WHITELIST 与 challenger 策略加入 WMON → `policy-attest --execute` 上链新认证 → `whitelist-wmon.mjs` 金库白名单上链 → pipeline assetMap 加 WMON（intent→`deposit()` calldata `0xd0e30db0`，`pipeline.mjs` WMON_DEPOSIT）→ **全链 E2E 实测：buy WMON 0.01 → executeTrade（金库余额出资）→ TradeExecuted @62366819，execHash 与 transcript 逐字节一致，金库 WMON 0→0.01**。修复 /api/verify 口径：未显式传 target/amount 时走与 /api/agent/command 完全相同的 pipeline 解析（data 也取 pipeline 值），新增 `resolvedBy` 字段。challenger 加固：全局 unhandledRejection 接管（RPC 抖动不再杀进程）
 - [x] **Phase 6 完成**（2026-09-14）：**统一入口 Dashboard**——Next rewrites 把 `/orch/*` 同源代理到 orchestrator（**dashboard 生产路径不经 CORS**，内网地址不进浏览器；注：orchestrator 自身的 CORS 白名单是 2026-09-16 才收紧的，见下方"审计修正"条）；新页 `/try`（现场跑一笔：pipeline 预览 → 双实现裁决 → dry-run 摘要，preset 覆盖合规/注入/未知标的/超限）与 `/architecture`（信任边界图 + TEE 虚线 + 10 步路径 + 一键 11 负例实测）；landing 四卡全改真实读数（编造数字清除或标「示例」）；`/receipts` 改走 orchestrator 索引（真实哈希+tx 可点 explorer，未覆盖字段诚实显示"—"）；nav 重排评审动线（核心→用户→运营者）。修复：try/architecture 页管线拒绝时 challenger=null 的 TypeError、challenger layers 对象误当数组、11 负例面板未知标的误用白名单 target
 - [x] **Phase 5 完成**（2026-09-14）：README 重写（信任边界口径、P1-P6 里程碑、Phase 4 全链 tx 表、部署地址表更新到 v2、诚实边界清单、testnet 重置坑）；agents.md 同步
@@ -290,7 +290,7 @@ node scripts/soa-demo.mjs --onchain  # 真实上链版（需 orchestrator+challe
 - `aegis/hardhat.config.js` — solc 0.8.24 + viaIR + optimizer 200 + `evmVersion: paris`
 - `aegis/README.md` — 参赛级 README
 - `第四版策略.md` — 主策略文档（工作区根目录）
-- `..\..\monad论文\`（即 `C:\Users\12190\Desktop\本科二年级\monad论文\`，2026-09-14 从工作区根目录移出）— **论文全部文档的独立文件夹（已有自己的 AGENTS.md，论文工作台自动加载）**：
+- `..\..\monad论文\`（即 （仓库之外的独立工作区，本机路径从略），2026-09-14 从工作区根目录移出）— **论文全部文档的独立文件夹（已有自己的 AGENTS.md，论文工作台自动加载）**：
   - `monad论文\A会论文路线图v3.md` — **把本项目升维成安全顶会（S&P/USENIX/CCS/NDSS）论文的研究路线图（最新版）**：R1 输入真实性不可能性（主）+ R2 组件必要性 + R3 机制设计 + R4 UC（冲刺）；含对 v2 错误的逐条更正
   - `monad论文\新原语提案-验证闭包与选择可验证性.md` — **新原语提案（论文升级核心候选）**：验证闭包原则、选择可验证性三分谱系（T1–T5）、SOA 签署目标协议、ε-悔憾验证与 bond 定价；把 v3 的 R1 变为其 T5 特例
   - `monad论文\架构创新提案-验证拓扑演算.md` — **架构级创新提案（论文最高层形态）**：验证拓扑演算 VTC——能力格+验证算子代数（o1–o8）、组合健全性定理（Fréchet–Hoeffding 任意相关）、综合算法与复杂度（Thm A/B/C）、算子集完备性；把黑客松系统/SOA 都变成综合实例，正面消解"原语组合"批评；含 §7 相邻领域必查清单（BAN logic/trust management/攻击树/runtime enforcement）
@@ -327,7 +327,7 @@ new FallbackProvider([providerA, providerB], 10143, { quorum: 1, stallTimeout: 2
 ## 9. 运行 / 测试命令
 
 ```bash
-# 工作目录：C:\Users\12190\Desktop\本科二年级\Monad量化\aegis
+# 工作目录：<仓库根>\aegis
 
 # 合约编译 + 单测（应 44/44 通过：aegis.test.js 31 + m2m3.test.js 13）
 npx hardhat compile                 # 期望 "evm target: paris"
@@ -412,7 +412,7 @@ cd ../dashboard && npm install && npm run build && npm start
 - **⚠️ `CHALLENGER_ADDR` 必须与 `CHALLENGER_PK` 派生地址一致（2026-10-03 修复）**：修复前 `.env` 里 `CHALLENGER_ADDR=0x6c8D…` 与 `CHALLENGER_PK` 派生地址 `0x16e6…` **不一致**，而链上 `isTrustedValidator(0x6c8D…)=false` / `isTrustedValidator(0x16e6…)=true`——按旧值重部署会把错误地址授权进白名单，真 challenger 反而不被信任，`executeTrade` 全部 revert `Untrusted challenger`。`.env` 已改正，`scripts/deploy-v5.mjs` 已加启动断言（两侧都有值就必须相等）。改 `challenger/` 钱包后务必同步这两处。
 - **余额**：主钱包 ~5.01 MON（2026-09-16，够约 13 笔全链）；单笔全链实测 ≈0.373 MON（收据 3.48M gas 占大头）。
 - **challenger**：余额 ~0.57 MON；每笔决策 2 笔 validation 交易（≈0.025 MON）；需预留第二台机器新钱包的注资（~0.5 MON）。
-- **LLM 端点（主用：官方 DeepSeek API，校外可达）**：偶发 503 / 超时 / 请求挂起 → 管线 fail-closed 返回 refuse（如实标注，不静默降级假数据）；退避 45–60s 重试即可。**deepseek-flash 是推理模型**：reasoning 与答案共享 max_tokens，预算过小会截断成空 content（`finish_reason=length`）→ 误拒；已统一 `LLM_MAX_TOKENS=2000`（`pipeline.mjs`）。（原 USTC 网关条目已于 2026-09-15 删除）
+- **LLM 端点（主用：官方 DeepSeek API，校外可达）**：偶发 503 / 超时 / 请求挂起 → 管线 fail-closed 返回 refuse（如实标注，不静默降级假数据）；退避 45–60s 重试即可。**deepseek-flash 是推理模型**：reasoning 与答案共享 max_tokens，预算过小会截断成空 content（`finish_reason=length`）→ 误拒；已统一 `LLM_MAX_TOKENS=2000`（`pipeline.mjs`）。（原 校园网关条目已于 2026-09-15 删除）
 - **RPC 读可能瞬时滞后**（FallbackProvider 后端 LB，曾观测到后端落后 ~39k 块的陈旧读）：写路径已加固（客户端预算 expectedDigest + 轮询对齐；prev 读连续两次一致才采信）——若见 "Not latest receipt"/digest 不匹配类报错，先怀疑读滞后而非合约状态。
 - **历史收据索引有少量缺口**（RPC 限流放弃的窗口），重跑 `index-receipts.mjs` 可补。⚠️ **但补的只是"最近一段"**（2026-10-03 澄清）：该脚本以**最新收据块为锚向前扫 `RECEIPTS_MAX_SCAN` 块（默认 70 万）**，比这个地平线更旧的收据**结构上取不到**——实测 agentId=1 的收据散布在块 62.37M–64.76M，默认窗口只覆盖 64.06M–64.76M，故只能恢复最近 5 张，且全量扫描约 30 分钟（0.28s/窗口，零 gas）。要更早的收据请用区块浏览器，或显式调大 `RECEIPTS_MAX_SCAN`。另：`orchestrator/receipts-cache.json` 已被 gitignore 且被 `.rebuild-anon-mirror.mjs` 排除，**公开镜像里没有它**，评审侧 `/receipts` 会如实显示为空。
 - **TEE 阶段二三（OPA/Membrane）未实现**，当前为可插拔结构——README 已标为已知边界，勿在答辩中声称已实现。
