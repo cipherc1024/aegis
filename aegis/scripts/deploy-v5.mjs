@@ -17,7 +17,7 @@
 //   node scripts/deploy-v5.mjs                  # 真正部署（会花真钱）
 import { loadEnv, getWallet, loadArtifact } from "./lib.mjs";
 import { attestedGuardrailHash } from "../challenger/verify.mjs";
-import { ContractFactory, Contract } from "ethers";
+import { ContractFactory, Contract, Wallet } from "ethers";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +36,29 @@ const AGENT_ID = 1n;
 const TEE = wallet.address;
 const OWNER = wallet.address;
 const CHALLENGER = process.env.CHALLENGER_ADDR || "0x16e619c3d6625f4d6F583791A4C2351D65508a2c";
+
+// ⚠️ 一致性断言（2026-10-03 加）。事故背景：`.env` 里的 `CHALLENGER_ADDR` 曾是
+// `0x6c8D6538…`（孤儿值——该地址在仓库别处零出现），而 `CHALLENGER_PK` 派生的是
+// `0x16e619c3…`；链上实测 `isTrustedValidator(0x6c8D…)=false` / `(0x16e6…)=true`。
+// 按错值部署 = 把错误地址授权进白名单 → 真 challenger 不被信任 → `executeTrade`
+// 全部 revert "Untrusted challenger"（fail-closed，资金安全但交易全线作废，且报错难定位）。
+// 两侧都有值就必须相等；不相等直接拒绝部署（宁可停下问人，不要静默产出一个废金库）。
+{
+  const pk = (process.env.CHALLENGER_PK || "").trim();
+  if (pk) {
+    const derived = new Wallet(pk).address;
+    if (derived.toLowerCase() !== CHALLENGER.toLowerCase()) {
+      console.error("CHALLENGER_ADDR 与 CHALLENGER_PK 派生地址不一致 —— 拒绝部署：");
+      console.error("  CHALLENGER_ADDR        :", CHALLENGER);
+      console.error("  CHALLENGER_PK 派生地址 :", derived);
+      console.error("  先改 .env 的 CHALLENGER_ADDR，否则会把错误地址授权进白名单。");
+      process.exit(1);
+    }
+    console.log("challenger 一致性        : OK（CHALLENGER_ADDR == CHALLENGER_PK 派生地址）");
+  } else {
+    console.log("challenger 一致性        : 跳过（未设 CHALLENGER_PK，无法交叉核对）");
+  }
+}
 const PER_TX = 50_000_000_000_000_000n;      // 0.05 MON
 const DAILY = 1_000_000_000_000_000_000n;    // 1 MON
 

@@ -19,6 +19,22 @@ if (fs.existsSync(".env")) {
 }
 
 const PORT = Number(process.env.ORCH_PORT || 8787);
+// 监听地址：默认只回环。本进程持有 proposer 私钥，写端点可真实上链（花真 gas），
+// 绑 0.0.0.0 等于把「花你的钱」暴露给同网段任何主机。需要远程访问时显式设
+// ORCH_HOST=0.0.0.0，并同时设 ORCH_API_TOKEN，否则启动即警告。
+const HOST = process.env.ORCH_HOST || "127.0.0.1";
+
+// ---- 写端点鉴权 ----
+// 写端点（/api/agent/command、/api/admin/*、/api/agents、/api/objective/draft）会动钱或改链上
+// 权限。此前**零认证**：任何能连上本端口的人都能触发真实交易。
+//   ORCH_API_TOKEN 非空 → 写端点要求 X-API-Token 匹配，否则 401（不发任何交易）
+//   ORCH_API_TOKEN 为空 → 全部写端点强制 dryRun（见 EXECUTE_ENABLED），只回预览
+const API_TOKEN = process.env.ORCH_API_TOKEN || "";
+// 真实执行开关：只有显式 ORCH_ENABLE_EXECUTE=1 才允许 execute/confirm 真正广播。
+// 与 token 是两个独立闸门——token 挡"谁能调用"，本开关挡"这台机器是否具备发真钱的条件"。
+// 二者任一不满足，写端点一律退化为只读预览（fail-closed：宁可拒绝，不可放行）。
+const EXECUTE_ENABLED = process.env.ORCH_ENABLE_EXECUTE === "1";
+
 const RPC_LIST = [
   process.env.MONAD_TESTNET_RPC || "https://testnet-rpc.monad.xyz",
   "https://rpc.ankr.com/monad_testnet",
@@ -413,26 +429,60 @@ async function execStats(agentId = 1) {
     rows,
   };
 }
+// 最近一次成功的 /api/status 快照：RPC 读失败时用它返回"降级读数"。
+// 为什么必须有：2026-10-04 实测到 ethers 抛 `request timeout`（geturl.js）→ 本端点 500 →
+// 前端 lib/aegis.ts 的 get() 把"非 2xx"与"网络不可达"一律折成 null →
+// 落地页显示「orchestrator 未启动（见 README 运行步骤）」：把**一次 RPC 抖动**说成了
+// **服务没启动**，给评委完全错误的排查方向；叠加 6s 轮询，状态灯还会忽明忽暗。
+// 现在改为：读失败也返回 200 + `degraded:true`（online 仍为 true，因为服务确实活着），
+// 并带上上次已知值与失败原因，由前端如实显示"读数降级"。
+let lastGoodStatus = null;
+
 async function status(agentId) {
-  const [bn, r, fresh, alive] = await Promise.all([
-    provider.getBlockNumber(),
-    reg.latestReceipt(agentId),
-    reg.isTradeFresh(agentId),
-    reg.isAlive(agentId, 60n),
-  ]);
-  return {
-    online: true,
-    currentBlock: bn,
-    lastReceiptBlock: Number(r.blockHeight),
-    fresh,
-    alive,
-    receiptHash: r.digest,
-    guardrailHash: r.guardrailHash,
-    executionHash: r.executionHash,
-    // 让 Dashboard 能显示"当前这条链跑的是什么模型、是否真跨家族"
-    llm: llmMeta(),
-    agentId: Number(agentId),
-  };
+  try {
+    const [bn, r, fresh, alive] = await Promise.all([
+      provider.getBlockNumber(),
+      reg.latestReceipt(agentId),
+      reg.isTradeFresh(agentId),
+      reg.isAlive(agentId, 60n),
+    ]);
+    const out = {
+      online: true,
+      currentBlock: bn,
+      lastReceiptBlock: Number(r.blockHeight),
+      fresh,
+      alive,
+      receiptHash: r.digest,
+      guardrailHash: r.guardrailHash,
+      executionHash: r.executionHash,
+      // 让 Dashboard 能显示"当前这条链跑的是什么模型、是否真跨家族"
+      llm: llmMeta(),
+      agentId: Number(agentId),
+    };
+    lastGoodStatus = out; // 只在成功时覆盖
+    return out;
+  } catch (e) {
+    const reason = e?.shortMessage || e?.message || String(e);
+    console.warn("[orchestrator] /api/status 降级返回（RPC 读失败）:", reason);
+    if (lastGoodStatus) {
+      return { ...lastGoodStatus, degraded: true, degradedReason: reason };
+    }
+    // 启动后第一次读就失败：保持字段形状不变（前端类型稳定），但明确说"服务在、读不到链"
+    return {
+      online: false,
+      degraded: true,
+      degradedReason: reason,
+      currentBlock: 0,
+      lastReceiptBlock: 0,
+      fresh: false,
+      alive: false,
+      receiptHash: "0x" + "00".repeat(32),
+      guardrailHash: "0x" + "00".repeat(32),
+      executionHash: "0x" + "00".repeat(32),
+      llm: llmMeta(),
+      agentId: Number(agentId),
+    };
+  }
 }
 
 // 实时尾扫结果的内存缓存。尾扫本身很贵：20 个 100 块窗口串行 ≈12s（实测 432ms/窗口），
@@ -474,13 +524,24 @@ async function receipts(agentId) {
   const out = [];
   const seen = new Set();
   // 1) 缓存（scripts/index-receipts.mjs 产物；getLogs 限 100 块，深历史走索引器）
+  // ⚠️ 每条都带 registry/source 出处（2026-10-03 加）：这份缓存里的项目
+  //    `registry` 字段是**生成时**的 registry 地址，可能指向已废弃的表
+  //    （实测 receipts-cache.json 曾停在 v1 `0x91482e67…`，updatedAt 2026-09-13，
+  //    而生产 registry 是 v2 `0x4622D041…`）。旧实现只 merge 不标注，前端就把
+  //    废弃表上的收据当成当前收据展示了。现在把出处交给前端，由它对比
+  //    /api/config 的当前 registry 并显式告警——不静默、也不隐藏。
+  let cacheRegistry = null;
   try {
     if (fs.existsSync("orchestrator/receipts-cache.json")) {
       const cache = JSON.parse(fs.readFileSync("orchestrator/receipts-cache.json", "utf8"));
       if (cache.agentId === Number(agentId)) {
+        cacheRegistry = cache.registry || null;
         for (const r of cache.receipts) {
           const key = String(r.receiptHash);
-          if (!seen.has(key)) { seen.add(key); out.push(r); }
+          if (!seen.has(key)) {
+            seen.add(key);
+            out.push({ ...r, source: "indexer-cache", registry: cacheRegistry });
+          }
         }
       }
     }
@@ -488,7 +549,10 @@ async function receipts(agentId) {
   // 2) 尾扫缓存（不阻塞：本次请求用旧值，后台按 TTL 刷新）
   for (const r of tailCache) {
     const key = String(r.receiptHash);
-    if (!seen.has(key)) { seen.add(key); out.push(r); }
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push({ ...r, source: "tail-scan", registry: REGISTRY });
+    }
   }
   void refreshTail(agentId);
   return out.sort((a, b) => b.blockHeight - a.blockHeight);
@@ -779,6 +843,29 @@ async function command(agentId, body) {
 
   // 7) execute 流程（AGENTS 待办#1）：body.execute=true 时等待独立 challenger 链上背书
   //    （response≥100）→ 调用 AegisVaultQuorum.executeTrade（onlyTEE）→ 金库真实转账
+  // 门控：body.execute 只是"调用方想要"，实际广播还须服务端 EXECUTE_ENABLED=1。
+  // 未开启时不静默忽略——返回明确原因，调用方知道这是配置而非失败。
+  if (body.execute && !EXECUTE_ENABLED) {
+    tradePendingUntil = 0;
+    return {
+      decision: "approved_onchain",
+      dryRun: false,
+      type,
+      txHash: tx.hash,
+      status: r.status,
+      gasUsed: r.gasUsed.toString(),
+      ...(quoteInfo ? { quote: quoteInfo, submitPath: "submitReceiptWithQuote (DCAP verified)" } : { submitPath: "submitReceipt (onlyTEE fallback)" }),
+      transcriptHash: transcriptHashVal,
+      newLastReceiptHash: receiptDigest,
+      challenger: { agree: verdict.agree, response: verdict.response, layers: verdict.layers, mismatches: verdict.mismatches, note: "on-chain validation 由独立 challenger 进程/机器完成（proposer 不代签）" },
+      vault: await vaultState(agentId),
+      executeRequested: true,
+      execution: {
+        status: "execute_disabled",
+        note: "服务端未开启真实执行（需 ORCH_ENABLE_EXECUTE=1）。收据与 transcript 均已上链，executeTrade 未广播。",
+      },
+    };
+  }
   let execution = null;
   if (body.execute && type !== "heartbeat" && vaultWrite) {
     // 等待窗须 < 链上 MAX_BLOCK_AGE（100 块 ≈ 30s @300ms）：isTradeFresh 从收据提交块起算，
@@ -907,6 +994,7 @@ async function attestGuardrailOp(body) {
     ],
   };
   if (body.confirm !== true) return { dryRun: true, preview, note: "未广播。确认请带 confirm:true。" };
+  if (!EXECUTE_ENABLED) return { dryRun: true, preview, note: "未广播。服务端未开启真实执行（需 ORCH_ENABLE_EXECUTE=1）；以上为预估。" };
   const tx = await fn(...args);
   const r = await tx.wait();
   const after = await regW.agentGuardrailHash(aid);
@@ -956,6 +1044,7 @@ async function adminOp(op, body) {
     signerBalanceMon: Number(await provider.getBalance(wallet.address)) / 1e18,
   };
   if (body.confirm !== true) return { dryRun: true, preview, note: "未广播。确认请带 confirm:true 重发同一请求。" };
+  if (!EXECUTE_ENABLED) return { dryRun: true, preview, note: "未广播。服务端未开启真实执行（需 ORCH_ENABLE_EXECUTE=1）；以上为预估。" };
   const tx = await fn(...call.args, ...(call.overrides ? [call.overrides] : []));
   const r = await tx.wait();
   const after = await vaultState();
@@ -974,7 +1063,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000,h
 function corsFor(origin) {
   const base = {
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-API-Token",
     Vary: "Origin",
   };
   // 无 Origin = 非浏览器调用（curl / 服务端），不需要 ACAO；命中白名单才回显
@@ -990,6 +1079,58 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(code, { "Content-Type": "application/json", ...cors }).end(JSON.stringify(body));
 
   if (req.method === "OPTIONS") return res.writeHead(204, cors).end();
+
+  // ---- 写端点鉴权闸门 ----
+  // 被保护的是"能产生副作用"的端点：动钱、改链上权限、起草签名目标。
+  // 只读端点不设限（dashboard 需要无凭据也能渲染真实读数）。
+  const WRITE_PATHS = ["/api/agent/command", "/api/admin/", "/api/agents", "/api/objective/draft"];
+  const isWrite = req.method === "POST" && WRITE_PATHS.some((p) => url.pathname === p || url.pathname.startsWith(p));
+
+  // 端点是否需要凭据（不做副作用归一化——那由各 handler 自己取 req.aegisForceDryRun）。
+  // 默认：写端点要；只读端点不要。
+  let needsToken = isWrite;
+
+  // `/api/verify` 是**条件性**需要凭据的：显式传 target/amount 时全程确定性（零 gas、
+  // 不写链、不碰网络），只读语义成立；**省略 target/amount 时**它走 runLLMPipeline →
+  // makeLLM → 对**付费** LLM 端点的真实出站调用（llm-openai.mjs）。此前它不在
+  // WRITE_PATHS 内，于是任何能到达端口的人（含无 Origin 的 curl/服务端调用——CORS
+  // 收紧后这类请求不受来源白名单约束）都能无限驱动付费 API，而注释却声称"只读端点
+  // 不设限"。改为按 body 判：要动用 LLM 才要凭据。
+  // 只读 body 判据而非整条路由，是为了不误伤 /architecture 的 11 组负例面板——
+  // 其中 10 组显式传参、走确定性路径，不应被要求带 token。
+  if (req.method === "POST" && url.pathname === "/api/verify") {
+    const b = await readJsonBody(req);
+    if (b === INVALID_JSON) return send(400, { error: "invalid JSON body" });
+    req.aegisVerifyBody = b;
+    needsToken = b.target === undefined && b.amount === undefined;
+  }
+
+  if (needsToken) {
+    if (API_TOKEN && req.headers["x-api-token"] !== API_TOKEN) {
+      return send(401, {
+        error: "unauthorized",
+        note: isWrite
+          ? "写端点需要 X-API-Token（服务端 ORCH_API_TOKEN 已设置）。未发出任何交易。"
+          : "该请求需要服务端 LLM 解析（未显式给 target/amount），故按写端点同等要求 X-API-Token。"
+            + "若只需确定性校验，请显式传 target 与 amount——那条路径零成本、无需凭据。",
+      });
+    }
+    if (!API_TOKEN && isWrite) {
+      // 未配 token = 未声明"谁可以写"。两个闸门取与：token 缺位时无论 EXECUTE_ENABLED 如何，
+      // 写端点都不得广播，一律降级为预览（fail-closed）。落点在各 handler 的
+      // body 解析处（见下方各 POST 分支的 req.aegisForceDryRun 归一化）。
+      req.aegisForceDryRun = true;
+    }
+    if (!API_TOKEN && !isWrite) {
+      // verify 的非确定性支路：没有 token 就无从判断"谁在花钱"，直接拒绝而不是放行。
+      // 不能降级为"确定性结果"——调用方要的是 LLM 解析，静默换语义比报错更危险。
+      return send(403, {
+        error: "llm_path_requires_token",
+        note: "未显式给 target/amount 的 /api/verify 会调用服务端 LLM（计费）。"
+          + "服务端未设 ORCH_API_TOKEN 时拒绝该支路。请显式传 target 与 amount 走确定性路径。",
+      });
+    }
+  }
 
   try {
     if (url.pathname === "/api/status") return send(200, await status(agentId));
@@ -1053,11 +1194,23 @@ const server = http.createServer(async (req, res) => {
         },
         trustBoundary: {
           devices: [
-            { role: "proposer", name: "Proposer 机器（本机）", holds: ["MONAD_TESTNET_PK"], note: "双 LLM 管线 + 确定性 δ 预览；持有 TEE 私钥，可提交收据" },
+            { role: "proposer", name: "Proposer 机器（本机）", holds: ["MONAD_TESTNET_PK"], note: "双 LLM 管线 + 确定性 δ 预览；持有 TEE 私钥，可提交收据。⚠️ 同一地址当前也是链上金库 owner（见下方「密钥现状」）" },
             { role: "challenger", name: "Challenger 机器（独立）", holds: ["CHALLENGER_PK"], note: "独立钱包上链 validation；verify.mjs 只依赖 ethers + 自己的 objective.mjs（单向零依赖，反向有一处复用见文档）；可选跨家族模型层默认关闭（非 L5，L5 专指目标层）" },
             { role: "tee", name: "Phala CVM（TDX）", holds: [], note: "实时生成绑定 digest 的 TDX quote，链上 DCAP 验真" },
           ],
           llmPlacement: "proposer",
+          // ⚠️ 这条必须与链上事实一致，且不得弱化。2026-10-03 实测：
+          //   vault.owner() == vault.teeDerivedAddress() == registry.agentTEE(1) == 本进程签名地址
+          //   == .env 的 MONAD_TESTNET_PK 派生地址（0x2a0eECA0…Ff0a9）
+          // 因此「三方分权、任一方单独作恶都不成立」是**错误**表述：owner 一把钥即可
+          // withdraw 全部资金、改白名单/限额、换 registry、换验证者白名单。
+          // 唯一严格成立的是「未经已授权 challenger 背书，无法执行一笔交易」。
+          keyConcentration: {
+            // 正文**不要**重复"密钥现状"这个标题：前端已在正文前渲染同名加粗标签，
+            // 两边都带前缀会显示成「密钥现状（如实披露）密钥现状（如实披露）：…」（2026-10-04 修）。
+            zh: "链上金库 owner、TEE 执行地址与 proposer 签名地址当前是同一个地址（见 /subaccounts 或链上 owner() / teeDerivedAddress() / registry.agentTEE(1)）。因此严格成立的表述是——Agent 无法执行一笔未经 challenger 背书的交易；而金库治理权（withdraw / setLimits / setTarget / setReceiptRegistry / setTrustedValidator）目前集中在单一密钥上，该钥单独即可提空金库或更换收据表以绕过 quorum 闸门。生产化拆分路线：owner 多签 + governance timelock + TEE 独立 HSM/独立主机。",
+            en: "the on-chain vault owner, the TEE execution address and the proposer signing address are currently the SAME address (see /subaccounts, or on-chain owner() / teeDerivedAddress() / registry.agentTEE(1)). The strict claim is therefore: the agent cannot execute a trade without an endorsed challenger verdict. Vault governance (withdraw / setLimits / setTarget / setReceiptRegistry / setTrustedValidator) is currently concentrated in a single key, which alone can drain the vault or swap the receipt table to bypass the quorum gate. Production split: owner multisig + governance timelock + a separate TEE HSM/host.",
+          },
         },
       });
     }
@@ -1202,6 +1355,7 @@ const server = http.createServer(async (req, res) => {
       } catch {
         return send(400, { error: "invalid JSON body" });
       }
+      if (req.aegisForceDryRun) parsed = { ...parsed, dryRun: true, execute: false, confirm: false };
       return send(200, await command(agentId, parsed));
     }
 
@@ -1213,6 +1367,7 @@ const server = http.createServer(async (req, res) => {
       for await (const chunk of req) body += chunk;
       let parsed = {};
       try { parsed = body ? JSON.parse(body) : {}; } catch { return send(400, { error: "invalid JSON body" }); }
+      if (req.aegisForceDryRun) parsed = { ...parsed, confirm: false };
       const out = await adminOp(op, parsed);
       return send(out.error ? 400 : 200, out);
     }
@@ -1226,6 +1381,7 @@ const server = http.createServer(async (req, res) => {
       for await (const chunk of req) body += chunk;
       let b = {};
       try { b = body ? JSON.parse(body) : {}; } catch { return send(400, { error: "invalid JSON body" }); }
+      if (req.aegisForceDryRun) b = { ...b, confirm: false };
       const name = String(b.name || "").trim();
       if (!name) return send(400, { error: "name required" });
       const uri =
@@ -1256,6 +1412,7 @@ const server = http.createServer(async (req, res) => {
         ],
       };
       if (b.confirm !== true) return send(200, { dryRun: true, preview, note: "未广播。确认请带 confirm:true。" });
+      if (!EXECUTE_ENABLED) return send(200, { dryRun: true, preview, note: "未广播。服务端未开启真实执行（需 ORCH_ENABLE_EXECUTE=1）；以上为预估。" });
       const tx = await idWrite.register(uri);
       const r = await tx.wait();
       const idState = await identityState();
@@ -1287,6 +1444,19 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () =>
-  console.log(`[orchestrator] http://localhost:${PORT}  rpc=${RPC_LIST[0]}(+${RPC_LIST.length - 1})  signer=${wallet ? wallet.address : "none(dryRun only)"}`)
-);
+server.listen(PORT, HOST, () => {
+  console.log(`[orchestrator] http://${HOST}:${PORT}  rpc=${RPC_LIST[0]}(+${RPC_LIST.length - 1})  signer=${wallet ? wallet.address : "none(dryRun only)"}`);
+  console.log(
+    `[orchestrator] gates: apiToken=${API_TOKEN ? "set" : "UNSET(写端点强制预览)"}  execute=${EXECUTE_ENABLED ? "ENABLED(可真实上链)" : "disabled"}`
+  );
+  if (HOST !== "127.0.0.1" && HOST !== "localhost") {
+    console.warn(`[orchestrator] ⚠ 监听 ${HOST}：本进程持有 proposer 私钥，写端点可真实花费 gas。`);
+    if (!API_TOKEN) console.warn("[orchestrator] ⚠ 且 ORCH_API_TOKEN 未设置 —— 写端点已强制预览，但仍建议设 token 后再暴露。");
+  }
+  if (!API_TOKEN) {
+    console.warn("[orchestrator] ⚠ ORCH_API_TOKEN 未设置：所有写端点被强制降级为预览（只读）。设 token 才能真实写入。");
+  }
+  if (EXECUTE_ENABLED && !API_TOKEN) {
+    console.warn("[orchestrator] ⚠ ORCH_ENABLE_EXECUTE=1 但无 ORCH_API_TOKEN：两个闸门取与，写端点仍全部预览。");
+  }
+});

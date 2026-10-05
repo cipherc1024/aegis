@@ -109,9 +109,12 @@ function runDimension(d, G, kmax) {
 }
 
 function unstructuredControl(kappa) {
-  const samples = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].filter((m) => m <= kappa);
-  if (samples[samples.length - 1] !== kappa) samples.push(kappa);
-  return { kappa, points: samples.map((m) => ({ m, sStar: m < kappa ? 1.0 : 0.0 })) };
+  // convention (A): m = additional committed evaluations beyond the executed a;
+  // |mu \ {a}| = kappa - 1, so exact verification (s*=0) is reached at m = kappa - 1.
+  const exactAt = kappa - 1;
+  const samples = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].filter((m) => m <= exactAt);
+  if (samples.length === 0 || samples[samples.length - 1] !== exactAt) samples.push(exactAt);
+  return { kappa, exactAt, points: samples.map((m) => ({ m, sStar: m < exactAt ? 1.0 : 0.0 })) };
 }
 
 function systemGrounding() {

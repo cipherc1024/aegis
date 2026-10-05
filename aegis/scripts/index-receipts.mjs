@@ -11,7 +11,7 @@ const REGISTRY = process.env.REGISTRY || "0x4622D041696942dC873a8A5E54f1e1ca9669
 const AGENT_ID = 1;
 const WINDOW = 100; // RPC 硬限制
 const BATCH = 30;
-const MAX_SCAN = 700000; // ~2.4 天 @300ms
+const MAX_SCAN = Number(process.env.RECEIPTS_MAX_SCAN || 700000); // 默认 ~2.4 天 @300ms；实测 ≈0.28s/窗口 → 全量约 30 分钟（只读、零 gas）
 const TOPIC_AGENT = "0x" + "00".repeat(31) + "01";
 
 const abi = AbiCoder.defaultAbiCoder();
