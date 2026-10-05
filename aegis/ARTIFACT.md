@@ -106,9 +106,9 @@ E2E 为 2026-09-20 那三行**（`0x3aBbb284…b89De`：验证者白名单 + 交
 | SOA-lite E2E：收据+bindTranscript（objectiveHash 存证） | `0xac1a5c8a2f60f2110d005fd4383c4b9b36d75819ac174c6dbd9b7214bbe904de` | 62756780 |
 | SOA-lite E2E：executeTrade | `0x03a754cf73610a2350a5658e4a1fc90909ca8afbe585bdb9f90f767b81a5f388` | 62756812 |
 | **v5 全链 E2E（2026-09-20）：金库 `deposit()` 注资 0.5 MON** | `0x75b9d614…915b` | — |
-| **v5 全链 E2E：收据提交（DCAP verified，经 `submitReceiptWithQuote`）** | `0xda7a711711244c7d81283c231d5b79e27b6fab05ce1229ac1abd9e88385fe831` | 64148932 |
-| **v5 全链 E2E：challenger 裁决 validationResponse（100）** | `0x98fe4af5a0372abee8defae09e3ee9736c4c9ae548c0073f30ef9f9e9f5cdfac` | — |
-| **v5 全链 E2E：`executeTrade`（金库余额出资；WMON 0 → 0.01）** | `0x7e6e71d34e6ca04f465d565252eac5edd2997af1d1cebecc9f0b68896d2544ef` | — |
+| **v5 全链 E2E：收据提交（DCAP verified，经 `submitReceiptWithQuote`）** | `0xda7a711711244c7d81283c231d5b79e27b6fab05ce1229ac1abd9e88385fe831` | 64148941 |
+| **v5 全链 E2E：challenger 裁决 validationResponse（100）** | `0x98fe4af5a0372abee8defae09e3ee9736c4c9ae548c0073f30ef9f9e9f5cdfac` | 64148961 |
+| **v5 全链 E2E：`executeTrade`（金库余额出资；WMON 0 → 0.01）** | `0x7e6e71d34e6ca04f465d565252eac5edd2997af1d1cebecc9f0b68896d2544ef` | 64148976 |
 | v4 全链 E2E（2026-09-17，已废弃）：金库 `deposit()` 注资 0.5 MON | `0x92e6e5425dcc2281f92c7a2223517f6a83da79a4f5a0c4cea63c89d7e4c179c4` | — |
 | v4 全链 E2E：收据提交（DCAP verified） | `0xf9e49b5b22b878e3f225180d2ada035b516389a4d12694849cfc7a4d174d8d7b` | — |
 | v4 全链 E2E：`executeTrade`（金库余额出资；WMON 0 → 0.01） | `0x42048bec27b97c3c640cf21e701a2a87e23f1f7d313c765bd3990852b4b76b05` | — |
@@ -120,11 +120,34 @@ E2E 为 2026-09-20 那三行**（`0x3aBbb284…b89De`：验证者白名单 + 交
 
 其余链上记录（D6 八向量 + 一正例的 gas 3,837,429、quorum E2E、DCAP verifyQuote 等）见 `dcap-verifier/STATUS.md`。
 
-## 3. 链上读侧快照（RPC 历史不依赖）
+## 3. 链上读侧快照（需自行重建，不在镜像内）
 
 Monad testnet 无归档公共端点保证（`eth_getLogs` 限 100 块、间歇 Archive error）。
-`orchestrator/receipts-cache.json` 为索引器产物（`node scripts/index-receipts.mjs` 可再生成），
-附逐 tx 快照——读侧复现不依赖实时 RPC 历史。
+读侧快照 = `orchestrator/receipts-cache.json`，由 `node scripts/index-receipts.mjs` 生成
+（以最新收据块为锚、向前扫 `RECEIPTS_MAX_SCAN` 块，默认 70 万块 ≈ 7000 个 100 块窗口）。
+
+⚠️ **该文件刻意不进公开镜像**：`.rebuild-anon-mirror.mjs` 的 `EXCLUDE_FILES` 同时排除
+`receipts-cache.json`、`decisions.jsonl`、`challenger-{state,log}.*`、`.env*`、`*.zip`。
+所以评审 clone 到的 artifact 里**没有**这份快照，dashboard `/receipts` 会如实显示为空
+（显示"离线/列表为空"，不回退占位值），且 challenger 对历史收据因拉不到 decision 原文而
+**fail-closed 拒签**——这是设计使然，不是故障。
+
+要看到收据流，自行跑一次索引器即可（零 gas、只读）：
+
+```bash
+node scripts/index-receipts.mjs                      # 全量窗口
+RECEIPTS_MAX_SCAN=100000 node scripts/index-receipts.mjs   # 只看最近 10 万块（约 4 分钟）
+```
+
+**实测成本（2026-10-03，公共 RPC）**：约 0.28 s/窗口 → 默认 70 万块全量约 **30 分钟**。
+⚠️ **这是一个"地平线"而不是"全历史"**：`to = 最新收据块 + 100`、`from = to - MAX_SCAN`，
+所以比地平线更旧的收据**结构上索引不到**（2026-10-03 实测：`agentId=1` 的收据散布在块
+62.37M–64.76M，而默认窗口只覆盖 64.06M–64.76M ⇒ 只能恢复最近 5 张；要覆盖全部需要
+~240 万块 ≈ 2 小时）。更早的收据请在区块浏览器按地址查，或显式调大 `RECEIPTS_MAX_SCAN`。
+生成物含 `registry` 字段（生成时的 registry 地址）；若该字段指向已废弃的表，orchestrator 会在
+`/api/receipts` 的每条记录上带出 `source` / `registry` 出处，dashboard `/receipts` 据此显示
+「旧表」标签与告警横幅——**不会**把旧表上的收据伪装成当前收据（2026-10-03 修：此前只 merge
+不标注，页面会把 v1 时代的收据当成当前收据列出）。
 
 ## 4. 可选档：真实上链（需测试网 MON）
 
@@ -201,6 +224,15 @@ A 的 `executeTrade` 在 B 背书后成功。**未在第二台物理机执行前
     单测 **44/44** 覆盖三个 v5 用例（换表保资金 / 换表后钩子读新表 / owner-only + 拒零地址）。
 11. **v4 全链 E2E 与 v5 金库注资的区块号未记录**：§2 表中标 `—` 的行是
     `eth_sendRawTransaction` 返回值，当时未落盘区块号；tx 哈希可在 Monad 区块浏览器直接查证。
+    **v5 那三行的块号已于 2026-10-04 用 `eth_getTransactionByHash` 逐个复核并填入**（收据 64148941 /
+    裁决 64148961 / 执行 64148976）。**三笔的 `from` 地址本身就是角色分离的证据**：收据与执行来自
+    proposer/TEE 钥 `0x2a0eECA0…`，而中间的裁决来自**另一把钥** `0x16e619c3…`（独立 challenger，
+    且已实测 `isTrustedValidator(0x16e619c3…)==true`）——proposer 无法给自己的决策背书。
+    **v5 收据那行的块号口径（2026-10-03 校正）**：表里写的是该 tx 的**落块** `64148941`
+    （由 `eth_getTransactionReceipt` 复核）。此前该格写的 `64148932` 是 `decisions.jsonl`
+    里记录的**参考块高**（构建收据时读到的块），两者差 9 块，不是同一个量——引用时勿混。
+    （`agentId=1` 在链上共有 10+ 张收据，最近一张在块 64,764,216；只有 v5 那笔
+    `executeTrade` 真正执行过，金库 WMON 恒为 0.01。）
 12. **Dashboard 是复现的观测面，不是证据来源**：`dashboard/` 只渲染 `orchestrator` 的只读端点或
     浏览器内直读链上，**不持密钥、不代签、不产生新的事实**。因此它不构成论文的任何数字来源——
     论文/artifact 的数字一律以链上 tx、脚本输出、`STATUS.md` 为准；dashboard 用于让评审**核对**

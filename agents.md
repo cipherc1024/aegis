@@ -45,8 +45,8 @@ node scripts/soa-demo.mjs --onchain  # 真实上链版（需 orchestrator+challe
 ## 1. 项目是什么
 
 - **项目名**：Aegis —— TEE-Attested Autonomous Trading Agent
-- **赛事**：Monad Metropolis 黑客松，**Track 04: Trust, Identity & AI Infrastructure**
-- **提交截止**：**2026-10-13**（交接时剩约 1 个月）
+- **赛事**：Monad Metropolis 黑客松，赛道 **Trust, Identity & AI Infrastructure**（平台界面的赛道**不编号**；此前文档写的"Track 04"是仓库自造的编号，非平台原文）
+- **提交截止**：平台显示 **OCT 14 · 11:59 GMT+8**（= 2026-10-14 11:59 CST；此前文档写的 2026-10-13 系笔误）。**提交入口 2 October 开放**，在此之前 SUBMIT PROJECT 按钮禁用。
 - **一句话定义**：给“持有链上资金的自主 AI 代理”做**可验证执行**——AI 每一步决策都变成密码学对象（确定性摘要 → 绑定区块的哈希链收据 → 链上验证的 TEE 身份 → 独立 challenger 重推导互证），金库只执行通过全部关卡的字节。
 - **答辩金句**：“以太坊解决了‘代码即法律’，我们解决‘模型即法律’——不让 AI 直接动钱，让‘可被独立重推导出相同结论’的决策动钱。”
 
@@ -129,7 +129,7 @@ node scripts/soa-demo.mjs --onchain  # 真实上链版（需 orchestrator+challe
   ④ `/sdk` 删除宣传 npm 上不存在的 `@aegis/sdk`，改为五组**真实可调用**接口（只读 curl / 零 gas 预览与裁决 / 独立验证 + 决策原文 / 两步治理写入 / 浏览器内直读链上），每段带可用的复制按钮，链上地址从 `api.config()` 插值（不硬编码）。
   **nav 重组**：原「规划中（无后端）」组改名为 **「设计边界（真实读数 + 边界论证）」**——这些页数据是真的，但对应的产品功能在本架构下"结构上不能做"或"尚未做"；分组名本身不再把「结构边界」误标成「待办」。
   **`mock.ts` 清理**：删除 `AGENTS` / `RECEIPTS` / `MOCK_DATA_NOTICE` 三个 fixtures 与 `h()` 助手（删除前逐个确认零消费者），仅保留 `Receipt`/`ReceiptType`/`Agent` 接口与 `shortHash`/`shortAddr`。
-  **回归验证（2026-09-20 实跑）**：`dashboard` `npx tsc --noEmit` **EXIT=0** · `npx next build` **EXIT=0**（23 静态页，20 路由全部产出）· `npx hardhat test` **41 passing** · `node challenger/selftest.mjs` **17/17** · `node scripts/parity-check.mjs` **21 agree / 0 diverge** · 浏览器实测 `/settings`（chainId 10143 / 块 64081476 / orchestrator 在线 / 新鲜度"陈旧"）、`/copy`（Agent #1、收据 2、已获背书 0、待背书 2，两行均"待背书"）、`/subaccounts`（0.48 MON、三角色、trustedValidators 1）、`/sdk`（真实插值地址 + 复制按钮）。**修复过程中的真实缺陷**：`next build` 因 4 处 ESLint 未使用变量（`backtest` 的 `Link`、`create` 的 `fmtMon` 与 `reg`、`market` 的 `onDone`）失败，均为历次重写遗留的死代码，逐个删除后 build 通过。
+  **回归验证（2026-09-20 实跑）**：`dashboard` `npx tsc --noEmit` **EXIT=0** · `npx next build` **EXIT=0**（23 静态页，20 路由全部产出）· `npx hardhat test` **41 passing**（当时口径；v5 三用例后为 **44/44**） · `node challenger/selftest.mjs` **17/17** · `node scripts/parity-check.mjs` **21 agree / 0 diverge** · 浏览器实测 `/settings`（chainId 10143 / 块 64081476 / orchestrator 在线 / 新鲜度"陈旧"）、`/copy`（Agent #1、收据 2、已获背书 0、待背书 2，两行均"待背书"）、`/subaccounts`（0.48 MON、三角色、trustedValidators 1）、`/sdk`（真实插值地址 + 复制按钮）。**修复过程中的真实缺陷**：`next build` 因 4 处 ESLint 未使用变量（`backtest` 的 `Link`、`create` 的 `fmtMon` 与 `reg`、`market` 的 `onDone`）失败，均为历次重写遗留的死代码，逐个删除后 build 通过。
 - [x] **v5 重部署：`registry` 可换 + 余额检查上线（2026-09-20）**：v4 有两处结构缺口——① `AegisVault.registry` 是 **`immutable`**，`ReceiptRegistry` 需要更换时（升级 bindTranscript 公式、修 God mode 等）只能 `withdraw` 全部资金 → 重新部署金库 → **金库地址、白名单、限额、余额历史全部作废**；② `require(value <= address(this).balance, "Insufficient vault balance")` **只在源码**（§3 待办 8 的历史遗留）。v5 一并收口。
   **合约改动**（`AegisVault.sol`）：`registry` 由 `immutable` 改为可变存储；新增 `setReceiptRegistry(address) external onlyOwner`（`require(_registry != address(0))`，发 `ReceiptRegistryUpdated(previous, current)`，构造函数亦发一次 `(address(0), _registry)`）；新增 `Deposited` 事件。**信任模型不变**——registry 本来就被信任（只有它背书的 executionHash 能放行执行），可变只是把「换表」从「搬钱"降级为「改一个存储槽」。`AegisVaultQuorum.sol` 只改注释（钩子读 `registry.lastTradeReceipt`，换表后自动读新表）。
   **单测 41 → 44 passing**（新增三个 v5 用例）：① 换表后金库余额原样保留、旧表收据立即不再被认可（`No fresh trade receipt`）、新表补收据+PDR 绑定后恢复执行（**白名单/限额/余额全程未重设**）；② `setReceiptRegistry` owner-only + 拒零地址；③ quorum 版：换表后钩子必须从**新表**取 digest 才放行 `executeTrade`。
@@ -359,7 +359,7 @@ node scripts/quorum-e2e.mjs
 # 收据索引器（约 30+ 分钟扫历史块 → orchestrator/receipts-cache.json）
 node scripts/index-receipts.mjs
 
-# Orchestrator（默认 :8787，ORCH_PORT 可改）
+# Orchestrator（默认 127.0.0.1:8787，只回环；ORCH_PORT / ORCH_HOST 可改）
 node orchestrator/server.mjs
 #   读侧（真实读数，dashboard 各页就靠这些）：
 #   GET /api/status | /api/config | /api/receipts | /api/decision/:digest | /api/pipeline | /api/events (SSE)
@@ -375,6 +375,15 @@ node orchestrator/server.mjs
 #   SOA-lite 目标草稿（LLM 起草，零 gas）：
 #   POST /api/objective/draft  {"command":"buy WMON 0.01","marketData":"..."}
 #   带签署目标的提交：在 body 附加 objective + objectiveSignature（scripts/soa-sign.mjs 产出）
+#
+#   ⚠ 写端点两道闸门（本进程持 proposer 私钥、写端点可花真 gas；默认收紧）：
+#     ① ORCH_API_TOKEN 设了 → 写端点须带 header `X-API-Token`，否则 401 零 gas；
+#        未设 → 所有写端点（command / admin/* / agents / objective/draft）强制降级为预览。
+#     ② ORCH_ENABLE_EXECUTE=1 才允许 confirm/execute 真正广播；未设时 body 带 execute:true
+#        仍会提交收据（花 gas）但 executeTrade 不广播，回包 execution.status="execute_disabled"。
+#     两闸门取与（token 挡"谁能调用"，开关挡"这台机器是否具备发真钱的条件"），任一不满足 fail-closed。
+#     默认只监听 127.0.0.1；远程访问须显式 ORCH_HOST=0.0.0.0 且设 token，否则启动打印警告。
+#     Dashboard 前端写请求由 NEXT_PUBLIC_ORCH_API_TOKEN 内联注入该 header（构建期变量，产物勿公开分发）。
 
 # 统一入口 Dashboard（演示用 build+start；dev 与 build 共享 .next 会互相破坏，切 dev 前先 rm -rf .next）
 cd ../dashboard && npm install && npm run build && npm start
@@ -399,11 +408,13 @@ cd ../dashboard && npm install && npm run build && npm start
 
 ## 11. 风险与注意
 
+- **⚠️ 密钥角色现状（2026-10-03 链上实测，答辩前必读）**：`vault.owner()` == `vault.teeDerivedAddress()` == `registry.agentTEE(1)` == `MONAD_TESTNET_PK` 派生地址（`0x2a0eECA0…Ff0a9`）**全是同一把钥**，也就是 orchestrator 进程里明文持有的那把。该钥的 `onlyOwner` 权限含 `withdraw`（提空金库）、`setLimits`、`setTarget`、`setReceiptRegistry`（换收据表 → 绕过 quorum）、`setTrustedValidator`。**因此只能说"未经已授权 challenger 背书，Agent 无法执行一笔交易"；不得说"三方分权、任一方单独作恶都不成立"**（这句在部署态是假的）。已同步修正：`dashboard` 落地页与 `/architecture` 的信任边界卡片（新增 keyConcentration 披露块，offline 回退文本在 `dashboard/src/lib/snapshot.ts`）、`aegis/README.md`「已知边界」首条、`答辩背书-完整版.md` §7 第 11 条。生产化拆分：owner 多签 + governance timelock + TEE 独立 HSM/独立主机（本轮不拆钥）。
+- **⚠️ `CHALLENGER_ADDR` 必须与 `CHALLENGER_PK` 派生地址一致（2026-10-03 修复）**：修复前 `.env` 里 `CHALLENGER_ADDR=0x6c8D…` 与 `CHALLENGER_PK` 派生地址 `0x16e6…` **不一致**，而链上 `isTrustedValidator(0x6c8D…)=false` / `isTrustedValidator(0x16e6…)=true`——按旧值重部署会把错误地址授权进白名单，真 challenger 反而不被信任，`executeTrade` 全部 revert `Untrusted challenger`。`.env` 已改正，`scripts/deploy-v5.mjs` 已加启动断言（两侧都有值就必须相等）。改 `challenger/` 钱包后务必同步这两处。
 - **余额**：主钱包 ~5.01 MON（2026-09-16，够约 13 笔全链）；单笔全链实测 ≈0.373 MON（收据 3.48M gas 占大头）。
 - **challenger**：余额 ~0.57 MON；每笔决策 2 笔 validation 交易（≈0.025 MON）；需预留第二台机器新钱包的注资（~0.5 MON）。
 - **LLM 端点（主用：官方 DeepSeek API，校外可达）**：偶发 503 / 超时 / 请求挂起 → 管线 fail-closed 返回 refuse（如实标注，不静默降级假数据）；退避 45–60s 重试即可。**deepseek-flash 是推理模型**：reasoning 与答案共享 max_tokens，预算过小会截断成空 content（`finish_reason=length`）→ 误拒；已统一 `LLM_MAX_TOKENS=2000`（`pipeline.mjs`）。（原 USTC 网关条目已于 2026-09-15 删除）
 - **RPC 读可能瞬时滞后**（FallbackProvider 后端 LB，曾观测到后端落后 ~39k 块的陈旧读）：写路径已加固（客户端预算 expectedDigest + 轮询对齐；prev 读连续两次一致才采信）——若见 "Not latest receipt"/digest 不匹配类报错，先怀疑读滞后而非合约状态。
-- **历史收据索引有少量缺口**（RPC 限流放弃的窗口），重跑 `index-receipts.mjs` 可补。
+- **历史收据索引有少量缺口**（RPC 限流放弃的窗口），重跑 `index-receipts.mjs` 可补。⚠️ **但补的只是"最近一段"**（2026-10-03 澄清）：该脚本以**最新收据块为锚向前扫 `RECEIPTS_MAX_SCAN` 块（默认 70 万）**，比这个地平线更旧的收据**结构上取不到**——实测 agentId=1 的收据散布在块 62.37M–64.76M，默认窗口只覆盖 64.06M–64.76M，故只能恢复最近 5 张，且全量扫描约 30 分钟（0.28s/窗口，零 gas）。要更早的收据请用区块浏览器，或显式调大 `RECEIPTS_MAX_SCAN`。另：`orchestrator/receipts-cache.json` 已被 gitignore 且被 `.rebuild-anon-mirror.mjs` 排除，**公开镜像里没有它**，评审侧 `/receipts` 会如实显示为空。
 - **TEE 阶段二三（OPA/Membrane）未实现**，当前为可插拔结构——README 已标为已知边界，勿在答辩中声称已实现。
 - **心跳与交易窗口互斥 — 已在 v4 合约层消除**（2026-09-16）：orchestrator 侧在途守卫保留（trade 收据上链后 60s 内心跳请求返回 `heartbeat_deferred`，时间自愈）；challenger 仍对心跳收据直接跳过（无 transcript 绑定，不参与重推导）。合约层的根因已修：v4 钩子读交易槽 `lastTradeReceipt`（心跳在 `_submit` 里不写该槽），故即便绕过 orchestrator 直接发心跳 tx，也不会顶掉在途交易收据、不再触发 "No challenger quorum"。**旧 v2/v3 地址仍有该约束，勿回退引用。**
 - **金库出资语义（v2 起）**：`executeTrade` 内部 `target.call{value: value}(data)`，**资金来自金库自有余额**（owner 经 `deposit()` 注入），`executeTrade` 本身**非 payable**（刻意设计；三条理由见合约 `@dev`）。Phase 4 实测金库 WMON 0→0.01、v4 复跑 WMON 0→0.01 + MON 0.5→0.49、**v5 复跑同样 WMON 0→0.01 + MON 0.5→0.49**。`require(value <= address(this).balance, "Insufficient vault balance")` 自 **v5 起已在线上字节码生效**（v4 时代仅源码，见 §3 待办 8 的收尾）。

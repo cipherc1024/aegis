@@ -67,7 +67,12 @@ const ARTIFACT_TAG = "artifact-anon-2026-09-21";
 
 // 已知的历史 artifact tag。文档正文里若把其中任何一个写成"当前锚点"（而非
 // 明确标注为历史版本），就是陈旧引用——镜像与父仓都必须指向 ARTIFACT_TAG。
-const STALE_TAGS = ["artifact-anon-2026-09-17", "artifact-anon-2026-09-18"];
+//
+// 只列**远端真实存在**的 tag：`artifact-anon-2026-09-18` 仅存在于本地镜像仓，
+// 从未 push 到公开仓（`git ls-remote --tags origin` 实测只有 -09-17 与 -09-21）。
+// 把它列进来会诱导文档写出"两个历史 tag"这类评审无从核实的引用，故此条已移除。
+// 此列表只影响"陈旧引用"检测（把历史 tag 误写成当前锚点），不影响 tag 本身是否存在。
+const STALE_TAGS = ["artifact-anon-2026-09-17"];
 // 「当前锚点」句式的判据：锚点行是 `tag **\`<tag>\`**。历史说明行则写成
 // "> **旧 tag 说明**：..." 且 tag 带反引号但不带 ** 包裹。
 const ANCHOR_RE = /tag \*\*`(artifact-anon-[\d-]+)`\*\*/g;

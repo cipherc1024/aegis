@@ -28,6 +28,11 @@ aegis/tools/
 # ---- 匿名镜像工作树（本身是独立 git repo，已推送 cipherCN/monad；父仓不收录） ----
 .anon-mirror-build/
 
+# ---- 黑客松提交材料草稿（Description/GTM/Judge access + 命令清单）----
+# 这些是"往平台表单里贴的文本"，不是代码；且 00 文件里列出了需排除的本地文件（含个人简历）。
+# 不想让它们随公开仓发布就保持忽略；确实要入库时用 git add -f 提交材料/
+提交材料/
+
 # ---- 分发用二进制包（aegis/scripts/serve-dist.mjs 服务它；源文件在 challenger/，可重打包） ----
 aegis/challenger-dist.zip
 
@@ -35,3 +40,9 @@ aegis/challenger-dist.zip
 .DS_Store
 Thumbs.db
 .playwright-mcp/
+
+# ---- 个人信息与本机工作产物（绝不入库；公开仓会永久暴露，且条款 §5.3 禁止提交个人信息）----
+# 2026-10-05 加：以下三项此前只是"未跟踪"，一旦有人执行 git add -A 就会被永久写进公开历史。
+陈果-简历.pptx
+幻灯片*.PNG
+.chatecnu-work/

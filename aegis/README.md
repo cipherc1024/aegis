@@ -1,4 +1,4 @@
-# Aegis — TEE-Attested Autonomous Trading Agent (Monad Metropolis, Track 04)
+# Aegis — TEE-Attested Autonomous Trading Agent (Monad Metropolis · Trust, Identity & AI Infrastructure)
 
 > **Agent 必须证明它听话了——以及它做的是你想做的。**
 > LLM 自治交易的核心信任缺口：用户凭什么相信一个黑盒 Agent 拿着你的钱在交易？
@@ -8,6 +8,57 @@
 
 对应策略文档 `../第四版策略.md`。
 **状态：44/44 单测 + challenger selftest 17/17 + parity 21/21 + 全链路 Monad testnet 实测（见"已验证里程碑"）。**
+
+## 合规披露（提交要求：开源许可 / AI 工具 / 第三方归属 / 原创性）
+
+> 本节对应 Monad Metropolis 官方条款 **§4.1（强制提交件）**、**§4.1.4（AI 工具披露）**、**§7.2（开源许可）**。
+> 四小节都不可省——缺任一项属于 "Missing required components"（§10.1 可判不合格）。
+
+**① 开源许可**：本仓库以 **MIT License** 发布，全文见仓库根目录 [`LICENSE`](../LICENSE)。
+与全部 Solidity 源码顶部的 `SPDX-License-Identifier: MIT` 一致；MIT 是条款 §7.2 列举的 OSI 认可许可之一，
+且与下列第三方依赖（③）的许可全部兼容（无 GPL 传染项）。
+
+**② AI 编码工具使用披露**（条款 §4.1.4 要求）：
+本项目开发过程中**大量使用 AI 编码助手（agent 形式）**参与实现、重构、内部审计与文档撰写。
+**设计决策、合约部署、链上资金操作与最终核验由人类作者完成**；AI 产出均经人工复核，
+且**本仓库引用的每一个合约地址、tx 哈希与实验数字都经链上或公开来源核实**
+（复现表见 `ARTIFACT.md` §1，链上证据索引见 §2，可浏览器独立核验）。
+> 维护者注：评审明确要求 "must be disclosed"，请按实际情况补充所用工具的名称与使用范围。
+
+**③ 第三方代码与库的归属**（条款 §4.1.1 要求）：
+
+| 组件 | 版本 | 许可 | 用途 |
+|---|---|---|---|
+| `@automata-network/on-chain-pccs` | 1.1.1 | MIT | 链上 DCAP 验证所依赖的 PCCS 身份/TCB 数据合约 |
+| `@automata-network/automata-dcap-attestation` | 1.1.0 | MIT | Automata V4 quote verifier（`dcap-verifier/contracts/ImportV4.sol` 导入） |
+| `@openzeppelin/contracts` | 5.0.2 | MIT | DCAP 依赖链中的工具库 |
+| `solady` | 0.1.26 | MIT | 同上（DCAP 依赖链） |
+| `ethers` | 6.17.0 | MIT | 链上交互（orchestrator / challenger / scripts） |
+| `hardhat` + `@nomicfoundation/hardhat-{ethers,chai-matchers}` | 2.29.1 / 3.1.3 / 2.1.2 | MIT | 合约编译与测试 |
+| `solc` | 0.8.24 | MIT | Solidity 编译器 |
+| `@phala/dstack-sdk` | 0.5.8 | Apache-2.0 | CVM 内取 TDX quote（仅在 TEE 容器内安装） |
+| `@phala/dcap-qvl` | 0.6.3 | Apache-2.0 | 离链 quote 校验 |
+| `chai` / `mocha` | 4.5.0 / 11.8.0 | MIT | 测试框架 |
+| `next` / `react` / `react-dom` | 14.2.35 / 18.3.1 | MIT | Dashboard |
+| `viem` / `zustand` / `framer-motion` | 2.56.3 / 5.0.15 / 13.2.0 | MIT | Dashboard 链上读与状态管理 |
+| `tailwindcss` / `postcss` / `eslint` | 3.4.19 / 8.5.28 / 8.57.1 | MIT | 样式与静态检查 |
+| `lucide-react` | 1.45.0 | ISC | 图标 |
+| `typescript` | 5.9.3 | Apache-2.0 | 类型检查（构建期） |
+
+其他归属说明：
+- **ERC-8004 三注册表为自行实现**（`contracts/IdentityRegistry.sol` / `ReputationRegistry.sol` / `ValidationRegistry.sol`）：
+  官方 testnet 无部署（链上实测 `codeLen=0`），故按 EIP 接口自部署，未复制第三方实现。
+- **Monad canonical WMON**（`0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541`）是被调用的外部合约地址，不是被复制的代码。
+- **本地 `vendor/`（约 359 MB 的 Automata 源码树）不随仓库分发**（已 gitignore）；`dcap-verifier/artifacts-gen/`
+  由 `node scripts/compile-dcap.mjs` 从上述 npm 依赖重建。
+- 未使用 Monad Multicall3（该链上内层 `msg.sender` 失效，见下文"Monad 特性实测记录"）。
+
+**④ 原创性与 build window**（条款 §4.1.4 要求）：
+官方 build window 为 **2026-09-01 – 2026-10-14**。本仓库的 git 历史自 **2026-09-13**（当日 `git init`）开始，
+覆盖本次提交的全部工作：链上 DCAP 全栈、收据/金库合约、challenger 五层独立重推导、双 LLM 隔离管线、
+SOA-lite 目标层、M2/M3 组件、dashboard、以及全部实验 harness。**仓库内不含窗口外的既有代码**；
+早期方案文档的草稿版本（`archive/`）位于上层工作目录、不在本仓库内，仅供过程追溯。
+AI 工具使用情况见本节 ②。
 
 ## 信任边界（务必照此口径讲）
 
@@ -69,7 +120,7 @@ tee-runtime/                   Agent 循环（双 LLM 隔离管线 → 护栏 �
 tee/intee/                     In-TEE 自治闭环（Phala CVM 实测；2026-09-16 改为复用 tee-runtime/challenger 模块，2026-09-18 复跑通过，见 STATUS.md）
 orchestrator/                  零依赖服务：读侧（状态/收据/决策原文/SSE）+ 写侧（POST 决策 → 上链）；角色分离：本进程只当 proposer，不持有 challenger 私钥
 scripts/                       部署/验证/索引/负例/探测（d6-negative、parity-check、probe-dex、whitelist-wmon…）
-test/aegis.test.js             28 个测试（另有 m2m3.test.js 13 个，合计 41）
+test/aegis.test.js             31 个测试（另有 m2m3.test.js 13 个，合计 44）
 test/m2m3.test.js              M2 共识提交输入 / M3 承诺-揭示抽选机
 dashboard/                     Next.js 14 统一入口（评审动线：总览 → 现场跑一笔 → 独立验证器 → 架构与信任边界 → 收据流）
 ```
@@ -217,7 +268,7 @@ node scripts/regime-cost.mjs                  # 谱系代价曲线（δ/目标�
 # 策略变更流程：改 challenger-policy.json + orchestrator .env → 两侧同步 →
 node challenger/policy-attest.mjs --execute   # 认证 guardrailHash 上链（治理钱包）
 
-# Orchestrator（proposer；默认 :8787）
+# Orchestrator（proposer；默认 127.0.0.1:8787，只回环）
 node orchestrator/server.mjs
 # 读: GET /api/status | /api/config | /api/receipts | /api/decision/:digest | /api/pipeline | /api/events (SSE)
 #     GET /api/vault | /api/vaults | /api/agents | /api/policy | /api/exec-stats   （金库/身份/策略/执行统计真实读数）
@@ -226,6 +277,16 @@ node orchestrator/server.mjs
 #      body 可附 objective + objectiveSignature（SOA-lite 签署目标，见 scripts/soa-sign.mjs）
 # 治理写: POST /api/admin/<op> / POST /api/agents —— 不带 confirm 只 estimateGas（零 gas preview），带 confirm 才广播
 # 目标草稿: POST /api/objective/draft  body: {"command":"buy WMON 0.01","marketData":"..."}
+#
+# ⚠ 写端点的两道闸门（本进程持有 proposer 私钥，写端点能花真 gas，故默认收紧）：
+#   ① ORCH_API_TOKEN 设了 → 写端点须带 header `X-API-Token: <token>`，否则 401 且不发任何交易；
+#      未设 → **所有写端点强制降级为预览**（dryRun/execute/confirm 一律按 false 处理），只回预估。
+#   ② ORCH_ENABLE_EXECUTE=1 才允许 confirm/execute 真正广播；未设时即使 body 带 execute:true，
+#      收据会上链但 executeTrade 不广播，回包 execution.status="execute_disabled"。
+#   两闸门取与：token 挡"谁能调用"，开关挡"这台机器是否具备发真钱的条件"，任一不满足即 fail-closed。
+#   默认只监听 127.0.0.1；要远程访问须显式 ORCH_HOST=0.0.0.0 **且** 设 ORCH_API_TOKEN（否则启动打印警告）。
+#   Dashboard 生产路径走 Next 同源 rewrite（/orch/* → orchestrator），不经 CORS；
+#   前端写请求由 NEXT_PUBLIC_ORCH_API_TOKEN 内联注入 X-API-Token（构建期变量，勿公开分发该产物）。
 
 # 口径一致性（改 normalize/护栏/PACE/目标层后必跑）
 node scripts/parity-check.mjs                 # proposer 预览 vs challenger 重推导，漂移即 exit 1（21 用例：14 护栏/PACE + 7 目标层）
@@ -293,6 +354,14 @@ standing authorization 的 replay 防护由 nonce + deadline 收敛，链上防�
 
 ## 已知边界（诚实清单）
 
+- **密钥集中（2026-10-03 链上实测披露）**：金库 `owner`、TEE 执行地址（`registry.agentTEE(1)`）与 proposer 签名地址
+  **当前是同一个地址**（`0x2a0eECA0…Ff0a9`，= `.env` 的 `MONAD_TESTNET_PK`；实测
+  `vault.owner() == vault.teeDerivedAddress() == registry.agentTEE(1)`）。金库治理权
+  （`withdraw` / `setLimits` / `setTarget` / `setReceiptRegistry` / `setTrustedValidator`，见 `AegisVault.sol`）
+  全部是这把钥的 `onlyOwner` 权限。**所以严格成立的表述只有一句：Agent 无法执行一笔未经已授权
+  challenger 背书的交易**；而"三方分权、任一方单独作恶都不成立"是**错误**的——owner 一把钥即可提空
+  金库，或把 `registry` 换成自建表以绕过 quorum 闸门。生产化拆分路线：owner 多签 + governance
+  timelock + TEE 独立 HSM/独立主机。dashboard 的 `/` `/architecture` `/subaccounts` 均按此口径如实展示。
 - **LLM 跑在 TEE 之外**（proposer 侧）——刻意的，见"信任边界"；TEE 内只跑 quote 生成
 - **当前"真实协议交互"= WMON wrap**，非第三方 DEX swap：重置后 testnet 无可核实的 DEX router（见上）；
   challenger 当前验证的是策略合规性 + transcript 绑定 + 签署目标的 ε-一致性（L5），不是完整重推导 LLM 的推理过程
