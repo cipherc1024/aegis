@@ -1,0 +1,10 @@
+# Normalize text to LF in the repository, regardless of the cloning host.
+# Without this, core.autocrlf on Windows rewrites every file to CRLF on
+# checkout, so a fresh clone reports the whole tree as modified.
+* text=auto eol=lf
+
+# Preserve byte-exact artifacts.
+*.woff  binary
+*.woff2 binary
+*.ico   binary
+*.node  binary
